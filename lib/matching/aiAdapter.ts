@@ -33,6 +33,10 @@ export type AiMatchingSuggestion = {
   hiringDecision?: never;
 };
 
+export type AiMatchingValidationResult =
+  | { valid: true }
+  | { valid: false; error: string };
+
 export type AiMatchingAdapterInput = {
   coreCriteria: CoreCriteriaInputs;
   candidateInfo: CandidateInputs;
@@ -43,6 +47,76 @@ export type AiMatchingAdapterInput = {
 export interface AiMatchingAdapter {
   provider: AiMatchingProvider;
   suggest(input: AiMatchingAdapterInput): Promise<AiMatchingSuggestion>;
+}
+
+export function validateAiMatchingSuggestion(value: unknown): AiMatchingValidationResult {
+  if (!isRecord(value)) {
+    return { valid: false, error: "Adapter suggestion must be an object." };
+  }
+
+  if ("finalScore" in value || "hiringDecision" in value) {
+    return {
+      valid: false,
+      error: "Adapter suggestion must not include finalScore or hiringDecision."
+    };
+  }
+
+  if (!isProvider(value.provider)) {
+    return { valid: false, error: "Adapter suggestion provider is invalid." };
+  }
+
+  if (!Array.isArray(value.rubricCandidates)) {
+    return { valid: false, error: "Adapter suggestion rubricCandidates must be an array." };
+  }
+
+  if (!Array.isArray(value.evidenceMatches)) {
+    return { valid: false, error: "Adapter suggestion evidenceMatches must be an array." };
+  }
+
+  if (!Array.isArray(value.riskFlags) || !value.riskFlags.every((item) => typeof item === "string")) {
+    return { valid: false, error: "Adapter suggestion riskFlags must be a string array." };
+  }
+
+  if (!isConfidence(value.confidence)) {
+    return { valid: false, error: "Adapter suggestion confidence is invalid." };
+  }
+
+  if (!value.rubricCandidates.every(isRubricSuggestion)) {
+    return { valid: false, error: "Adapter suggestion rubricCandidates schema is invalid." };
+  }
+
+  if (!value.evidenceMatches.every(isEvidenceSuggestion)) {
+    return { valid: false, error: "Adapter suggestion evidenceMatches schema is invalid." };
+  }
+
+  return { valid: true };
+}
+
+export function sanitizeAiMatchingSuggestion(value: unknown): AiMatchingSuggestion | null {
+  const validation = validateAiMatchingSuggestion(value);
+  if (!validation.valid || !isRecord(value)) {
+    return null;
+  }
+
+  const suggestion = value as AiMatchingSuggestion;
+
+  return {
+    provider: suggestion.provider,
+    rubricCandidates: suggestion.rubricCandidates.map((item) => ({
+      title: item.title,
+      category: item.category,
+      required: item.required,
+      rationale: item.rationale
+    })),
+    evidenceMatches: suggestion.evidenceMatches.map((item) => ({
+      criterionTitle: item.criterionTitle,
+      evidenceType: item.evidenceType,
+      sentence: item.sentence,
+      rationale: item.rationale
+    })),
+    riskFlags: [...suggestion.riskFlags],
+    confidence: suggestion.confidence
+  };
 }
 
 export class MockAiMatchingAdapter implements AiMatchingAdapter {
@@ -77,4 +151,40 @@ export class MockAiMatchingAdapter implements AiMatchingAdapter {
         : "근거 충분"
     };
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isProvider(value: unknown): value is AiMatchingProvider {
+  return value === "mock" || value === "openai" || value === "anthropic" || value === "google";
+}
+
+function isConfidence(value: unknown): value is AiMatchingSuggestion["confidence"] {
+  return value === "근거 충분" || value === "일부 확인 필요" || value === "문서 근거 부족";
+}
+
+function isEvidenceType(value: unknown): value is AiEvidenceSuggestion["evidenceType"] {
+  return value === "direct" || value === "indirect" || value === "none";
+}
+
+function isRubricSuggestion(value: unknown): value is AiRubricSuggestion {
+  return (
+    isRecord(value) &&
+    typeof value.title === "string" &&
+    typeof value.category === "string" &&
+    typeof value.required === "boolean" &&
+    typeof value.rationale === "string"
+  );
+}
+
+function isEvidenceSuggestion(value: unknown): value is AiEvidenceSuggestion {
+  return (
+    isRecord(value) &&
+    typeof value.criterionTitle === "string" &&
+    isEvidenceType(value.evidenceType) &&
+    typeof value.sentence === "string" &&
+    typeof value.rationale === "string"
+  );
 }

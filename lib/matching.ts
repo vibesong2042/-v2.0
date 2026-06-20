@@ -1,3 +1,5 @@
+import type { AiMatchingAdapter, AiMatchingProvider } from "./matching/aiAdapter";
+import { sanitizeAiMatchingSuggestion } from "./matching/aiAdapter";
 import { buildMatchConfidence, missingRequiredCount } from "./matching/confidence";
 import { evaluateCriterionEvidence, evidenceLabel } from "./matching/evidence";
 import { buildEvaluationRubric } from "./matching/rubric";
@@ -174,6 +176,11 @@ export type StructuredMatchReport = {
   rubric: EvaluationRubric;
   criterionAssessments: CriterionAssessment[];
   confidence: MatchConfidence;
+  adapterMetadata: {
+    status: "notUsed" | "used" | "fallback";
+    provider?: AiMatchingProvider;
+    reason?: string;
+  };
 };
 
 export type AnalyzeStructuredMatchInput = {
@@ -182,6 +189,11 @@ export type AnalyzeStructuredMatchInput = {
   supportingCriteria: SupportingCriteriaInputs;
   weights: ScoringWeightSet;
   language: ReportLanguage;
+};
+
+export type AnalyzeStructuredMatchWithAdapterInput = AnalyzeStructuredMatchInput & {
+  adapter?: AiMatchingAdapter;
+  adapterTimeoutMs?: number;
 };
 
 export const DEFAULT_WEIGHT_SET: ScoringWeightSet = {
@@ -403,8 +415,60 @@ export function analyzeStructuredMatch(input: AnalyzeStructuredMatchInput): Stru
         : "영어/중국어 리포트 생성은 확장 예정입니다. 현재 결과는 한국어로 제공됩니다.",
     rubric,
     criterionAssessments,
-    confidence
+    confidence,
+    adapterMetadata: { status: "notUsed" }
   };
+}
+
+export async function analyzeStructuredMatchWithAdapter(
+  input: AnalyzeStructuredMatchWithAdapterInput
+): Promise<StructuredMatchReport> {
+  const baseReport = analyzeStructuredMatch(input);
+
+  if (!input.adapter) {
+    return baseReport;
+  }
+
+  try {
+    const suggestion = await withTimeout(
+      input.adapter.suggest({
+        coreCriteria: input.coreCriteria,
+        candidateInfo: input.candidateInfo,
+        supportingCriteria: input.supportingCriteria,
+        language: input.language
+      }),
+      input.adapterTimeoutMs ?? 3000
+    );
+    const sanitized = sanitizeAiMatchingSuggestion(suggestion);
+
+    if (!sanitized) {
+      return {
+        ...baseReport,
+        adapterMetadata: {
+          status: "fallback",
+          provider: input.adapter.provider,
+          reason: "Invalid adapter suggestion schema."
+        }
+      };
+    }
+
+    return {
+      ...baseReport,
+      adapterMetadata: {
+        status: "used",
+        provider: sanitized.provider
+      }
+    };
+  } catch (error) {
+    return {
+      ...baseReport,
+      adapterMetadata: {
+        status: "fallback",
+        provider: input.adapter.provider,
+        reason: error instanceof Error ? error.message : "Adapter failed."
+      }
+    };
+  }
 }
 
 export function generateStructuredReportText(report: StructuredMatchReport) {
@@ -602,6 +666,16 @@ function applyRequiredEvidenceCap(score: number, assessments: CriterionAssessmen
     requiredAssessments.reduce((sum, item) => sum + item.score, 0) / requiredAssessments.length;
 
   return requiredAverage < 55 ? Math.min(score, 69) : score;
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Adapter timed out after ${timeoutMs}ms.`)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 function buildStrengths(items: MatchScoreItem[]) {
