@@ -1,3 +1,11 @@
+import { buildMatchConfidence, missingRequiredCount } from "./matching/confidence";
+import { evaluateCriterionEvidence, evidenceLabel } from "./matching/evidence";
+import { buildEvaluationRubric } from "./matching/rubric";
+import { clampScore, roundOne, semanticTextSimilarity, tokenize } from "./matching/scoring";
+
+export { evaluateCriterionEvidence } from "./matching/evidence";
+export { buildEvaluationRubric } from "./matching/rubric";
+
 export type ScoreCode = "jobDescription" | "teamStrategy" | "mbo" | "custom";
 
 export type ScoringWeightItem = {
@@ -79,6 +87,53 @@ export type SupportingCriteriaInputs = {
   subjectiveOpinion: string;
 };
 
+export type RubricCategory =
+  | "필수 역량"
+  | "우대 역량"
+  | "경험 수준"
+  | "도메인 경험"
+  | "성과/임팩트"
+  | "협업/커뮤니케이션";
+
+export type RubricCriterion = {
+  id: string;
+  category: RubricCategory;
+  title: string;
+  description: string;
+  importance: number;
+  required: boolean;
+  evidenceNeed: "높음" | "보통" | "낮음";
+  keywords: string[];
+  synonyms: string[];
+};
+
+export type EvaluationRubric = {
+  criteria: RubricCriterion[];
+};
+
+export type EvidenceMatch = {
+  type: "direct" | "indirect" | "none";
+  sentence: string;
+  confidence: "high" | "medium" | "low";
+};
+
+export type CriterionAssessment = {
+  criterion: RubricCriterion;
+  score: number;
+  keywordScore: number;
+  semanticScore: number;
+  experienceScore: number;
+  evidenceQualityScore: number;
+  evidence: EvidenceMatch;
+  missing: string[];
+  interviewQuestion: string;
+};
+
+export type MatchConfidence = {
+  level: "근거 충분" | "일부 확인 필요" | "문서 근거 부족";
+  rationale: string;
+};
+
 export type CoreIndicatorMatch = {
   indicator: string;
   matchRate: number;
@@ -116,6 +171,9 @@ export type StructuredMatchReport = {
   appliedWeights: ScoringWeightSet;
   language: ReportLanguage;
   languageNotice: string;
+  rubric: EvaluationRubric;
+  criterionAssessments: CriterionAssessment[];
+  confidence: MatchConfidence;
 };
 
 export type AnalyzeStructuredMatchInput = {
@@ -284,21 +342,22 @@ export function analyzeStructuredMatch(input: AnalyzeStructuredMatchInput): Stru
   }
 
   const candidateText = input.candidateInfo.candidateResume;
-  const coreIndicators = extractIndicators(
-    `${input.coreCriteria.jobDescription}\n${input.coreCriteria.additionalMaterial}`,
-    4
+  const rubric = buildEvaluationRubric(input.coreCriteria);
+  const criterionAssessments = rubric.criteria.map((criterion) =>
+    evaluateCriterionEvidence(criterion, candidateText)
   );
-  const coreIndicatorMatches = coreIndicators.map((indicator) =>
-    buildCoreIndicatorMatch(indicator, candidateText)
-  );
+  const coreIndicatorMatches = criterionAssessments.map((assessment) => ({
+    indicator: `${assessment.criterion.category}: ${assessment.criterion.title}`,
+    matchRate: assessment.score,
+    evidence: evidenceLabel(assessment)
+  }));
   const supportingIndicatorMatches = [
     buildSupportingMatch("팀별 전략자료", input.supportingCriteria.teamStrategy, candidateText),
     buildSupportingMatch("보직장 MBO", input.supportingCriteria.managerMbo, candidateText),
     buildSupportingMatch("기타 주관식 의견", input.supportingCriteria.subjectiveOpinion, candidateText)
   ];
   const weightedCore =
-    average(coreIndicatorMatches.map((item) => item.matchRate)) *
-    (weightFor(input.weights, "jobDescription") / 100);
+    weightedAssessmentAverage(criterionAssessments) * (weightFor(input.weights, "jobDescription") / 100);
   const weightedTeam =
     (supportingIndicatorMatches[0]?.matchRate ?? 0) *
     (weightFor(input.weights, "teamStrategy") / 100);
@@ -306,21 +365,27 @@ export function analyzeStructuredMatch(input: AnalyzeStructuredMatchInput): Stru
     (supportingIndicatorMatches[1]?.matchRate ?? 0) * (weightFor(input.weights, "mbo") / 100);
   const weightedCustom =
     (supportingIndicatorMatches[2]?.matchRate ?? 0) * (weightFor(input.weights, "custom") / 100);
-  const overallScore = Math.round(weightedCore + weightedTeam + weightedMbo + weightedCustom);
-  const missingCapabilities = buildMissingCapabilities(coreIndicators, candidateText);
-  const interviewQuestions = buildInterviewQuestions(missingCapabilities, [
-    ...coreIndicatorMatches,
-    ...supportingIndicatorMatches
-  ]);
+  const requiredPenalty = missingRequiredCount(criterionAssessments) * 7;
+  const confidence = buildMatchConfidence(criterionAssessments);
+  const confidenceBonus = confidence.level === "근거 충분" ? 6 : 0;
+  const preliminaryScore = clampScore(
+    Math.round(weightedCore + weightedTeam + weightedMbo + weightedCustom - requiredPenalty + confidenceBonus)
+  );
+  const overallScore = applyRequiredEvidenceCap(preliminaryScore, criterionAssessments);
+  const missingCapabilities = buildMissingCapabilitiesFromAssessments(criterionAssessments);
+  const interviewQuestions = buildInterviewQuestionsFromAssessments(
+    criterionAssessments,
+    supportingIndicatorMatches
+  );
 
   return {
     overallMatch: {
       score: overallScore,
-      rationale: buildOverallRationale(coreIndicatorMatches, supportingIndicatorMatches),
+      rationale: buildOverallRationale(coreIndicatorMatches, supportingIndicatorMatches, confidence),
       recommendation:
-        overallScore >= 75
-          ? "담당부서 검토 자료로 활용 가능합니다. 단, 문서상 확인 불가 항목은 인터뷰에서 검증하세요."
-          : "추가 검토가 필요합니다. 낮은 매칭 항목과 확인 불가 역량을 우선 확인하세요."
+        overallScore >= 75 && confidence.level === "근거 충분"
+          ? "담당부서 검토 자료로 활용 가능합니다. 최종 판단 전 인터뷰에서 핵심 근거를 재확인하세요."
+          : "추가 검토가 필요합니다. 낮은 매칭 항목과 문서상 확인 불가 역량을 인터뷰에서 우선 확인하세요."
     },
     coreIndicatorMatches,
     supportingIndicatorMatches,
@@ -335,7 +400,10 @@ export function analyzeStructuredMatch(input: AnalyzeStructuredMatchInput): Stru
     languageNotice:
       input.language === "ko"
         ? ""
-        : "영어/중국어 리포트 생성은 확장 예정입니다. 현재 결과는 한국어로 제공됩니다."
+        : "영어/중국어 리포트 생성은 확장 예정입니다. 현재 결과는 한국어로 제공됩니다.",
+    rubric,
+    criterionAssessments,
+    confidence
   };
 }
 
@@ -361,6 +429,7 @@ export function generateStructuredReportText(report: StructuredMatchReport) {
   return [
     report.languageNotice,
     `[종합 매칭도] ${report.overallMatch.score}%`,
+    `[근거 충분성] ${report.confidence.level} - ${report.confidence.rationale}`,
     ...report.overallMatch.rationale.map((item) => `- ${item}`),
     `판단 의견: ${report.overallMatch.recommendation}`,
     "",
@@ -410,22 +479,129 @@ function scoreCriterion(
   };
 }
 
-function tokenize(text: string) {
-  const tokens = text
-    .toLowerCase()
-    .split(/[^a-z0-9가-힣]+/u)
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2);
+function buildSupportingMatch(
+  source: string,
+  criteria: string,
+  candidateText: string
+): SupportingIndicatorMatch {
+  if (criteria.trim().length === 0) {
+    return {
+      source,
+      matchRate: 0,
+      evidence: `${source} 입력이 없어 적합도를 산출하지 않았습니다.`
+    };
+  }
 
-  return tokens;
+  const criterion = buildEvaluationRubric({
+    jobDescription: criteria,
+    additionalMaterial: ""
+  }).criteria[0];
+  const assessment = evaluateCriterionEvidence(criterion, candidateText);
+
+  return {
+    source,
+    matchRate: assessment.score,
+    evidence: evidenceLabel(assessment)
+  };
 }
 
-function clampScore(score: number) {
-  return Math.max(0, Math.min(100, Math.round(score)));
+function buildMissingCapabilitiesFromAssessments(assessments: CriterionAssessment[]) {
+  const missing = assessments.flatMap((assessment) => assessment.missing);
+
+  return missing.length > 0 ? missing.slice(0, 6) : ["핵심 역량 대부분이 문서에서 확인됩니다."];
 }
 
-function roundOne(value: number) {
-  return Math.round(value * 10) / 10;
+function buildInterviewQuestionsFromAssessments(
+  assessments: CriterionAssessment[],
+  supportingMatches: SupportingIndicatorMatch[]
+) {
+  const lowAssessments = [...assessments].sort((a, b) => a.score - b.score);
+  const questions = lowAssessments.map((assessment) => assessment.interviewQuestion);
+  const weakSupporting = supportingMatches.find((item) => item.matchRate < 60);
+
+  if (weakSupporting) {
+    questions.push(`${weakSupporting.source}와 직접 연결되는 경험 또는 산출물을 설명해 주세요.`);
+  }
+
+  return Array.from(new Set(questions)).slice(0, 3);
+}
+
+function buildReferenceSimilarity(candidateText: string, referenceText: string): ReferenceSimilarity {
+  if (referenceText.trim().length === 0) {
+    return {
+      status: "notProvided",
+      summary: "비교 대상 미등록"
+    };
+  }
+
+  const score = semanticTextSimilarity(referenceText, candidateText);
+
+  return {
+    status: "compared",
+    score,
+    summary:
+      score >= 70
+        ? "기존 입사자 문서와 기술/경험 표현의 유사도가 높습니다."
+        : "기존 입사자 문서와 일부 기술/경험 표현만 유사합니다."
+  };
+}
+
+function buildOverallRationale(
+  coreMatches: CoreIndicatorMatch[],
+  supportingMatches: SupportingIndicatorMatch[],
+  confidence: MatchConfidence
+) {
+  const bestCore = [...coreMatches].sort((a, b) => b.matchRate - a.matchRate)[0];
+  const weakCore = [...coreMatches].sort((a, b) => a.matchRate - b.matchRate)[0];
+  const bestSupporting = [...supportingMatches].sort((a, b) => b.matchRate - a.matchRate)[0];
+
+  return [
+    bestCore
+      ? `가장 높은 핵심지표 매칭 항목은 "${bestCore.indicator}" (${bestCore.matchRate}%)입니다.`
+      : "핵심지표 입력이 제한적입니다.",
+    weakCore
+      ? `추가 검증이 필요한 핵심지표는 "${weakCore.indicator}" (${weakCore.matchRate}%)입니다.`
+      : "추가 검증 항목을 산출하지 못했습니다.",
+    bestSupporting
+      ? `보조지표 중 "${bestSupporting.source}" 적합도가 ${bestSupporting.matchRate}%로 산출되었습니다.`
+      : "보조지표 입력이 제한적입니다.",
+    `근거 충분성은 "${confidence.level}"입니다. ${confidence.rationale}`
+  ];
+}
+
+function weightedAssessmentAverage(assessments: CriterionAssessment[]) {
+  const totalWeight = assessments.reduce((sum, item) => sum + item.criterion.importance, 0);
+
+  if (totalWeight === 0) {
+    return 0;
+  }
+
+  return (
+    assessments.reduce((sum, item) => sum + item.score * item.criterion.importance, 0) /
+    totalWeight
+  );
+}
+
+function applyRequiredEvidenceCap(score: number, assessments: CriterionAssessment[]) {
+  const requiredAssessments = assessments.filter((item) => item.criterion.required);
+  const missingCount = missingRequiredCount(assessments);
+
+  if (missingCount >= 2) {
+    return Math.min(score, 69);
+  }
+
+  if (missingCount === 1) {
+    return Math.min(score, 79);
+  }
+
+  if (requiredAssessments.length === 0) {
+    return score;
+  }
+
+  const requiredAverage =
+    requiredAssessments.reduce((sum, item) => sum + item.score, 0) / requiredAssessments.length;
+
+  return requiredAverage < 55 ? Math.min(score, 69) : score;
 }
 
 function buildStrengths(items: MatchScoreItem[]) {
@@ -446,136 +622,6 @@ function buildRecommendation(totalScore: number, risks: string[]) {
   }
 
   return "Hold for manual review before sending to the department.";
-}
-
-function extractIndicators(text: string, limit: number) {
-  const candidates = text
-    .split(/[\n.!?。！？]+/u)
-    .map((item) => item.replace(/^[-*•\d.\s]+/u, "").trim())
-    .filter((item) => item.length >= 4);
-
-  return (candidates.length > 0 ? candidates : ["핵심지표 입력 내용"]).slice(0, limit);
-}
-
-function buildCoreIndicatorMatch(indicator: string, candidateText: string): CoreIndicatorMatch {
-  const matchRate = keywordMatchRate(indicator, candidateText);
-
-  return {
-    indicator,
-    matchRate,
-    evidence:
-      matchRate >= 70
-        ? "지원자 문서에서 관련 경험 또는 기술 키워드가 확인됩니다."
-        : "지원자 문서에서 일부 키워드만 확인되며, 상세 경험은 추가 검증이 필요합니다."
-  };
-}
-
-function buildSupportingMatch(
-  source: string,
-  criteria: string,
-  candidateText: string
-): SupportingIndicatorMatch {
-  const matchRate = criteria.trim().length === 0 ? 0 : keywordMatchRate(criteria, candidateText);
-
-  return {
-    source,
-    matchRate,
-    evidence:
-      criteria.trim().length === 0
-        ? `${source} 입력이 없어 적합도를 산출하지 않았습니다.`
-        : matchRate >= 70
-          ? `${source} 기준과 연결되는 경험 키워드가 확인됩니다.`
-          : `${source} 기준과 직접 연결되는 근거가 제한적입니다.`
-  };
-}
-
-function buildMissingCapabilities(indicators: string[], candidateText: string) {
-  const candidateTokens = new Set(tokenize(candidateText));
-  const missing = Array.from(new Set(indicators.flatMap((indicator) => tokenize(indicator))))
-    .filter((token) => !candidateTokens.has(token))
-    .slice(0, 6)
-    .map((token) => `${token}: 지원자 문서상 확인 불가`);
-
-  return missing.length > 0 ? missing : ["핵심 역량 대부분이 문서상 확인됩니다."];
-}
-
-function buildInterviewQuestions(
-  missingCapabilities: string[],
-  matches: Array<{ matchRate: number; evidence: string }>
-) {
-  const lowMatch = matches.find((item) => item.matchRate < 70);
-  const missingKeywords = missingCapabilities
-    .filter((item) => item.includes("문서상 확인 불가"))
-    .map((item) => item.split(":")[0]);
-
-  return [
-    `${missingKeywords[0] ?? "핵심 직무 역량"}에 대해 실제 수행 사례와 본인 역할을 설명해 주세요.`,
-    `${missingKeywords[1] ?? "관련 프로젝트"} 경험에서 성과를 수치 또는 결과물 중심으로 설명해 주세요.`,
-    lowMatch
-      ? "문서상 근거가 제한적인 항목에 대해 추가로 검증할 경험이나 산출물이 있나요?"
-      : "직무기술서의 핵심 요구사항 중 인터뷰에서 보완 설명하고 싶은 경험은 무엇인가요?"
-  ];
-}
-
-function buildReferenceSimilarity(candidateText: string, referenceText: string): ReferenceSimilarity {
-  if (referenceText.trim().length === 0) {
-    return {
-      status: "notProvided",
-      summary: "비교 대상 미등록"
-    };
-  }
-
-  const score = keywordMatchRate(referenceText, candidateText);
-
-  return {
-    status: "compared",
-    score,
-    summary:
-      score >= 70
-        ? "기존 입사자 문서와 기술 키워드 유사도가 높습니다."
-        : "기존 입사자 문서와 일부 기술 키워드만 유사합니다."
-  };
-}
-
-function buildOverallRationale(
-  coreMatches: CoreIndicatorMatch[],
-  supportingMatches: SupportingIndicatorMatch[]
-) {
-  const bestCore = [...coreMatches].sort((a, b) => b.matchRate - a.matchRate)[0];
-  const weakCore = [...coreMatches].sort((a, b) => a.matchRate - b.matchRate)[0];
-  const bestSupporting = [...supportingMatches].sort((a, b) => b.matchRate - a.matchRate)[0];
-
-  return [
-    bestCore
-      ? `가장 높은 핵심지표 매칭 항목은 "${bestCore.indicator}" (${bestCore.matchRate}%)입니다.`
-      : "핵심지표 입력이 제한적입니다.",
-    weakCore
-      ? `추가 검증이 필요한 핵심지표는 "${weakCore.indicator}" (${weakCore.matchRate}%)입니다.`
-      : "추가 검증 항목을 산출하지 못했습니다.",
-    bestSupporting
-      ? `보조지표 중 "${bestSupporting.source}" 적합도가 ${bestSupporting.matchRate}%로 산출되었습니다.`
-      : "보조지표 입력이 제한적입니다."
-  ];
-}
-
-function keywordMatchRate(criteria: string, target: string) {
-  const criteriaTokens = Array.from(new Set(tokenize(criteria)));
-  const targetTokens = new Set(tokenize(target));
-
-  if (criteriaTokens.length === 0 || targetTokens.size === 0) {
-    return 0;
-  }
-
-  const matched = criteriaTokens.filter((token) => targetTokens.has(token)).length;
-  return Math.max(0, Math.min(100, Math.round(45 + (matched / criteriaTokens.length) * 55)));
-}
-
-function average(values: number[]) {
-  if (values.length === 0) {
-    return 0;
-  }
-
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function weightFor(weightSet: ScoringWeightSet, code: ScoreCode) {

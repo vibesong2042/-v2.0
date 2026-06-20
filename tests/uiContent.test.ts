@@ -42,4 +42,12 @@ describe("RoleFit Workbench UI content", () => {
     expect(source).toContain("questionCard");
     expect(source).not.toContain("<pre>{text}</pre>");
   });
+
+  it("renders report confidence for evidence sufficiency", () => {
+    const source = reportSource();
+
+    expect(source).toContain("근거 충분성");
+    expect(source).toContain("report.confidence.level");
+    expect(source).toContain("report.confidence.rationale");
+  });
 });

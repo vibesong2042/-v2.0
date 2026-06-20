@@ -63,6 +63,12 @@ export function ReportView({
               {activeWeights.map((item) => `${item.label} ${item.weight}%`).join(" / ")}
             </td>
           </tr>
+          <tr>
+            <th>근거 충분성</th>
+            <td>{report.confidence.level}</td>
+            <th>신뢰도 판단</th>
+            <td>{report.confidence.rationale}</td>
+          </tr>
         </tbody>
       </table>
 
