@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 const pageSource = () => readFileSync("app/page.tsx", "utf8");
 const reportSource = () => readFileSync("app/components/ReportView.tsx", "utf8");
+const departmentReviewPanelSource = () =>
+  readFileSync("app/components/DepartmentReviewPanel.tsx", "utf8");
 
 describe("RoleFit Workbench UI content", () => {
   it("uses the product name and removes the old headline", () => {
@@ -59,5 +61,22 @@ describe("RoleFit Workbench UI content", () => {
     expect(source).toContain("근거 충분성");
     expect(source).toContain("report.confidence.level");
     expect(source).toContain("report.confidence.rationale");
+  });
+
+  it("mounts a department review panel below the analysis report", () => {
+    const source = pageSource();
+
+    expect(source).toContain("DepartmentReviewPanel");
+    expect(source).toContain("<DepartmentReviewPanel");
+  });
+
+  it("renders the department review request and phone interview workflow", () => {
+    const source = departmentReviewPanelSource();
+
+    expect(source).toContain("현업부서 검토 요청");
+    expect(source).toContain("부서장 화면 미리보기");
+    expect(source).toContain("전화인터뷰 결과표");
+    expect(source).toContain("실제 메일은 발송되지 않습니다");
+    expect(source).toContain("결과 회신 완료");
   });
 });

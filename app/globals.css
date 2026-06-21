@@ -775,6 +775,212 @@ pre {
   margin-top: 18px;
 }
 
+.departmentReviewPanel {
+  margin-top: 24px;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 20px;
+  box-shadow: var(--shadow-soft);
+}
+
+.departmentReviewHeader {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.departmentReviewHeader span {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.departmentReviewHeader h3,
+.reviewCard h4,
+.reviewCard h5 {
+  margin: 0;
+  color: #101828;
+}
+
+.departmentReviewHeader p,
+.mutedText {
+  margin: 0;
+  color: #526070;
+  line-height: 1.55;
+}
+
+.reviewTimeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.reviewStep {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.reviewStep.active {
+  border-color: #99f6e4;
+  background: #ecfdf5;
+  color: #0f766e;
+}
+
+.departmentReviewGrid,
+.departmentHeadView {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 16px;
+}
+
+.reviewCard {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 16px;
+}
+
+.fieldLabel {
+  display: grid;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.fieldLabel input,
+.fieldLabel select,
+.fieldLabel textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+  color: #101828;
+  font: inherit;
+  font-weight: 600;
+}
+
+.fieldLabel textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.employeeList {
+  display: grid;
+  gap: 8px;
+}
+
+.employeeOption {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  width: 100%;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+  color: #344054;
+  text-align: left;
+}
+
+.employeeOption.selected {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+}
+
+.employeeOption strong {
+  color: #101828;
+}
+
+.employeeOption small {
+  color: #667085;
+}
+
+.previewMeta {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.previewMeta div {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.previewMeta dt {
+  color: #667085;
+  font-weight: 900;
+}
+
+.previewMeta dd {
+  margin: 0;
+  color: #101828;
+  word-break: break-word;
+}
+
+.mailPreview {
+  overflow: auto;
+  max-height: 260px;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+  color: #1f2937;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.reviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.reviewQuestionList {
+  margin: 0;
+  padding-left: 20px;
+  color: #344054;
+  line-height: 1.55;
+}
+
+.interviewForm {
+  gap: 14px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.scoreBadge.compact {
+  justify-self: start;
+  padding: 10px 14px;
+}
+
+.returnedState {
+  color: #0f766e;
+}
+
 @media (max-width: 980px) {
   .appHero,
   .stepNav,
@@ -782,7 +988,11 @@ pre {
   .weightGrid,
   .coreSummaryStrip,
   .coreMatchGrid,
-  .reportLayout {
+  .reportLayout,
+  .departmentReviewGrid,
+  .departmentHeadView,
+  .reviewTimeline,
+  .formGrid {
     grid-template-columns: 1fr;
   }
 

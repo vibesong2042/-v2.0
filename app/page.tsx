@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { DocumentInputCard } from "./components/DocumentInputCard";
+import { DepartmentReviewPanel } from "./components/DepartmentReviewPanel";
 import { ReportView } from "./components/ReportView";
 import { StepItem, StepNav } from "./components/StepNav";
 import { WeightPanel } from "./components/WeightPanel";
@@ -310,6 +311,7 @@ export default function Home() {
             onDownload={downloadReport}
             report={report}
           />
+          <DepartmentReviewPanel report={report} />
           <div className="footerActions">
             <button onClick={() => setActiveStep(2)} type="button">
               보조지표 수정
