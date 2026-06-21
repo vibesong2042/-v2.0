@@ -2,6 +2,14 @@
 
 import { ReactNode } from "react";
 import { StructuredMatchReport } from "../../lib/matching";
+import {
+  CoreMatchStatus,
+  getCoreMatchIcon,
+  getCoreMatchLabel,
+  getCoreMatchStatus,
+  sortCoreMatchCards,
+  summarizeCoreMatches
+} from "./coreMatchViewModel";
 
 export function ReportView({
   report,
@@ -24,6 +32,8 @@ export function ReportView({
   }
 
   const activeWeights = report.appliedWeights.items.filter((item) => item.enabled);
+  const coreSummary = summarizeCoreMatches(report.criterionAssessments);
+  const sortedCoreMatches = sortCoreMatchCards(report.criterionAssessments);
 
   return (
     <section className="reportSheet" aria-label="RoleFit Report">
@@ -82,24 +92,64 @@ export function ReportView({
       </ReportSection>
 
       <ReportSection title="핵심지표 매칭 여부">
-        <table className="reportDataTable">
-          <thead>
-            <tr>
-              <th>핵심내용</th>
-              <th>매칭도</th>
-              <th>판단 근거</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.coreIndicatorMatches.map((item, index) => (
-              <tr key={`${item.indicator}-${index}`}>
-                <td>{item.indicator}</td>
-                <td>{item.matchRate}%</td>
-                <td>{item.evidence}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="coreSummaryStrip" aria-label="핵심지표 요약">
+          <CoreSummaryPill label="강한 매칭" status="strong" value={coreSummary.strong} />
+          <CoreSummaryPill label="추가 확인" status="review" value={coreSummary.review} />
+          <CoreSummaryPill label="문서상 확인 불가" status="missing" value={coreSummary.missing} />
+          <CoreSummaryPill label="필수 미충족" status="missing" value={coreSummary.requiredUnmet} />
+        </div>
+        <div className="coreMatchGrid">
+          {sortedCoreMatches.map((assessment) => {
+            const status = getCoreMatchStatus(assessment.score, assessment.evidence.type);
+            const statusLabel = getCoreMatchLabel(status);
+            const evidenceText =
+              assessment.evidence.type === "none"
+                ? assessment.missing[0] ?? "지원자 문서상 확인 불가"
+                : assessment.evidence.sentence;
+
+            return (
+              <article
+                className={`coreMatchCard ${statusClassName(status)}${
+                  assessment.criterion.required && status !== "strong" ? " requiredRisk" : ""
+                }`}
+                key={assessment.criterion.id}
+              >
+                <div className="coreMatchHeader">
+                  <div>
+                    <div className="coreMatchBadges">
+                      {assessment.criterion.required ? <span>필수</span> : <span>선택</span>}
+                      <span>{assessment.criterion.category}</span>
+                    </div>
+                    <h4>{assessment.criterion.title}</h4>
+                  </div>
+                  <strong>{assessment.score}%</strong>
+                </div>
+                <div
+                  aria-label={`${statusLabel} ${assessment.score}%`}
+                  className="coreMatchProgress"
+                  role="img"
+                >
+                  <span style={{ width: `${assessment.score}%` }} />
+                </div>
+                <div className="coreMatchStatus">
+                  <span aria-hidden="true" className="coreMatchStatusIcon">
+                    {getCoreMatchIcon(status)}
+                  </span>
+                  <strong>{statusLabel}</strong>
+                  <span>{evidenceTypeLabel(assessment.evidence.type)}</span>
+                </div>
+                <p className="coreMatchEvidenceClamp">{evidenceText}</p>
+                <details className="coreMatchEvidence">
+                  <summary>판단 근거 더보기</summary>
+                  <p>{evidenceText}</p>
+                  {assessment.interviewQuestion ? (
+                    <p>인터뷰 확인: {assessment.interviewQuestion}</p>
+                  ) : null}
+                </details>
+              </article>
+            );
+          })}
+        </div>
       </ReportSection>
 
       <ReportSection title="보조지표 매칭 여부">
@@ -158,6 +208,26 @@ export function ReportView({
   );
 }
 
+function CoreSummaryPill({
+  label,
+  status,
+  value
+}: {
+  label: string;
+  status: CoreMatchStatus;
+  value: number;
+}) {
+  return (
+    <div className={`coreSummaryPill ${statusClassName(status)}`}>
+      <span aria-hidden="true" className="coreMatchStatusIcon">
+        {getCoreMatchIcon(status)}
+      </span>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 function ReportSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="reportBlock">
@@ -165,4 +235,16 @@ function ReportSection({ title, children }: { title: string; children: ReactNode
       {children}
     </section>
   );
+}
+
+function statusClassName(status: CoreMatchStatus) {
+  if (status === "strong") return "statusStrong";
+  if (status === "review") return "statusReview";
+  return "statusMissing";
+}
+
+function evidenceTypeLabel(type: "direct" | "indirect" | "none") {
+  if (type === "direct") return "직접 근거";
+  if (type === "indirect") return "간접 근거";
+  return "문서상 확인 불가";
 }

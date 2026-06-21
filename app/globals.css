@@ -550,6 +550,171 @@ pre {
   line-height: 1.65;
 }
 
+.coreSummaryStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.coreSummaryPill {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #d6dbe4;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+  color: #334155;
+}
+
+.coreSummaryPill strong {
+  font-size: 22px;
+  color: #111827;
+}
+
+.coreMatchGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.coreMatchCard {
+  border: 1px solid #d6dbe4;
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: #fff;
+  padding: 14px;
+}
+
+.coreMatchCard:focus-within {
+  outline: 3px solid rgba(14, 165, 233, 0.24);
+  outline-offset: 2px;
+}
+
+.coreMatchCard.requiredRisk {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.08);
+}
+
+.coreMatchHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.coreMatchHeader h4 {
+  margin: 8px 0 0;
+  color: #111827;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.coreMatchHeader strong {
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  padding: 7px 9px;
+  font-size: 18px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.coreMatchBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.coreMatchBadges span {
+  border: 1px solid #d6dbe4;
+  border-radius: 999px;
+  background: #f8fafc;
+  padding: 3px 8px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.coreMatchProgress {
+  overflow: hidden;
+  height: 9px;
+  margin: 14px 0 10px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.coreMatchProgress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+}
+
+.coreMatchStatus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: #475569;
+  font-size: 13px;
+}
+
+.coreMatchStatusIcon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: currentColor;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.coreMatchEvidenceClamp {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 10px 0 8px;
+  color: #334155;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.coreMatchEvidence {
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.coreMatchEvidence summary {
+  cursor: pointer;
+  color: #0f766e;
+  font-weight: 900;
+}
+
+.coreMatchEvidence summary:focus-visible {
+  outline: 3px solid rgba(14, 165, 233, 0.28);
+  outline-offset: 2px;
+}
+
+.statusStrong {
+  border-left-color: #0f766e;
+  color: #0f766e;
+}
+
+.statusReview {
+  border-left-color: #b45309;
+  color: #b45309;
+}
+
+.statusMissing {
+  border-left-color: #b91c1c;
+  color: #b91c1c;
+}
+
 .questionGrid {
   display: grid;
   gap: 10px;
@@ -615,6 +780,8 @@ pre {
   .stepNav,
   .cardGrid,
   .weightGrid,
+  .coreSummaryStrip,
+  .coreMatchGrid,
   .reportLayout {
     grid-template-columns: 1fr;
   }

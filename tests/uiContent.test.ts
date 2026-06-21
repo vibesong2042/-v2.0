@@ -38,9 +38,19 @@ describe("RoleFit Workbench UI content", () => {
     const source = reportSource();
 
     expect(source).toContain("reportSheet");
-    expect(source).toContain("reportDataTable");
     expect(source).toContain("questionCard");
     expect(source).not.toContain("<pre>{text}</pre>");
+  });
+
+  it("renders core indicators as visual cards instead of the old core table", () => {
+    const source = reportSource();
+
+    expect(source).toContain("coreSummaryStrip");
+    expect(source).toContain("coreMatchCard");
+    expect(source).toContain("coreMatchProgress");
+    expect(source).toContain("coreMatchStatusIcon");
+    expect(source).toContain("report.criterionAssessments");
+    expect(source).not.toContain("report.coreIndicatorMatches.map((item, index)");
   });
 
   it("renders report confidence for evidence sufficiency", () => {
