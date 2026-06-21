@@ -1,6 +1,9 @@
 import type { CoreCriteriaInputs, EvaluationRubric, RubricCategory, RubricCriterion } from "../matching";
 import { expandSynonyms, tokenize } from "./scoring";
 
+const SECTION_OR_METADATA_PATTERN =
+  /^(직무명|조직명|수행업무|필수요건|우대요건|핵심역량|중점 과제|채용 시 특히 확인할 항목)\s*:/u;
+
 export function buildEvaluationRubric(input: CoreCriteriaInputs): EvaluationRubric {
   const lines = extractCriterionLines(`${input.jobDescription}\n${input.additionalMaterial}`);
   const criteria = lines.map((line, index) => {
@@ -47,6 +50,7 @@ function extractCriterionLines(text: string) {
     .split(/[\n.!?。！？]+/u)
     .map((item) => item.replace(/^[-*•\d.)\s]+/u, "").trim())
     .filter((item) => item.length >= 4)
+    .filter((item) => !isSectionOrMetadataLine(item))
     .slice(0, 8);
 }
 
@@ -55,11 +59,15 @@ function classifyCriterion(line: string): RubricCategory {
   if (/우대|preferred|nice/i.test(line)) return "우대 역량";
   if (/성과|수치|단축|향상|개선|impact|kpi/i.test(line)) return "성과/임팩트";
   if (/협업|소통|커뮤니케이션|담당부서|stakeholder/i.test(line)) return "협업/커뮤니케이션";
-  if (/년|리딩|운영|책임|lead|senior|경험 수준/i.test(line)) return "경험 수준";
-  if (/hr|채용|인사|도메인|산업|domain/i.test(line)) return "도메인 경험";
-  return "필수 역량";
+  if (/년|리딩|운영|책임|lead|senior|경험 수준|경험/i.test(line)) return "경험 수준";
+  if (/hr|채용|인사|도메인|산업|domain|로봇|ros2|ros/i.test(line)) return "도메인 경험";
+  return "경험 수준";
 }
 
 function cleanCriterionTitle(line: string) {
   return line.replace(/^\s*(필수|우대|성과|협업|경험|도메인)\s*[:：-]?\s*/i, "").trim();
+}
+
+function isSectionOrMetadataLine(line: string) {
+  return SECTION_OR_METADATA_PATTERN.test(line.trim());
 }

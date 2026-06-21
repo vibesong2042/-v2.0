@@ -47,7 +47,8 @@ export function directKeywordScore(criteriaTokens: string[], candidateTokens: st
 
   const candidateSet = new Set(candidateTokens);
   const matched = criteriaTokens.filter((token) => candidateSet.has(token)).length;
-  return Math.round((matched / criteriaTokens.length) * 100);
+  const denominator = Math.min(criteriaTokens.length, 5);
+  return clampScore(Math.round((matched / denominator) * 100));
 }
 
 export function semanticMatchScore(criterion: RubricCriterion, candidateText: string) {
@@ -62,7 +63,8 @@ export function semanticMatchScore(criterion: RubricCriterion, candidateText: st
   const synonymMatched = criterion.synonyms
     .map(canonicalToken)
     .filter((token) => candidateTokens.has(token));
-  const score = ((matched.length + synonymMatched.length * 0.35) / criteriaTokens.length) * 100;
+  const denominator = Math.min(criteriaTokens.length, 5);
+  const score = ((matched.length + synonymMatched.length * 0.35) / denominator) * 100;
   return clampScore(Math.round(score));
 }
 

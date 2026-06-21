@@ -9,6 +9,11 @@ import {
   tokenize
 } from "./scoring";
 
+const NEGATIVE_OR_LEARNING_ONLY_PATTERN =
+  /(없음|없다|제한적|학습 중|튜토리얼|기초|희망|문서에 없습니다|경험은 없음|경험 없음)/u;
+const CONTRASTIVE_POSITIVE_PATTERN =
+  /(경험은 있으나|경험은 있지만|경험이 있으나|경험이 있지만|보유하고 있으나|보유하고 있지만)/u;
+
 export function evaluateCriterionEvidence(
   criterion: RubricCriterion,
   candidateText: string
@@ -53,6 +58,10 @@ export function evidenceLabel(assessment: CriterionAssessment) {
 function findBestEvidence(criterion: RubricCriterion, sentences: string[]) {
   return sentences.reduce(
     (best, sentence) => {
+      if (isNegativeOrLearningOnly(sentence)) {
+        return best;
+      }
+
       const score =
         directKeywordScore(criterion.keywords, tokenize(sentence)) * 0.35 +
         semanticMatchScore(criterion, sentence) * 0.35 +
@@ -70,7 +79,7 @@ function buildEvidenceMatch(
   semanticScore: number,
   sentence: string
 ): EvidenceMatch {
-  if (!sentence || score < 45) {
+  if (!sentence || isNegativeOrLearningOnly(sentence) || score < 45) {
     return { type: "none", sentence: "", confidence: "low" };
   }
 
@@ -91,4 +100,8 @@ function buildCriterionQuestion(criterion: RubricCriterion, evidence: EvidenceMa
   }
 
   return `${criterion.title} 관련 경험에서 본인의 역할, 성과, 검증 가능한 결과를 설명해 주세요.`;
+}
+
+function isNegativeOrLearningOnly(sentence: string) {
+  return NEGATIVE_OR_LEARNING_ONLY_PATTERN.test(sentence) && !CONTRASTIVE_POSITIVE_PATTERN.test(sentence);
 }

@@ -363,20 +363,35 @@ export function analyzeStructuredMatch(input: AnalyzeStructuredMatchInput): Stru
     matchRate: assessment.score,
     evidence: evidenceLabel(assessment)
   }));
-  const supportingIndicatorMatches = [
-    buildSupportingMatch("팀별 전략자료", input.supportingCriteria.teamStrategy, candidateText),
-    buildSupportingMatch("보직장 MBO", input.supportingCriteria.managerMbo, candidateText),
-    buildSupportingMatch("기타 주관식 의견", input.supportingCriteria.subjectiveOpinion, candidateText)
-  ];
+  const teamWeight = weightFor(input.weights, "teamStrategy");
+  const mboWeight = weightFor(input.weights, "mbo");
+  const customWeight = weightFor(input.weights, "custom");
+  const teamMatch = buildWeightedSupportingMatch(
+    teamWeight,
+    "팀별 전략자료",
+    input.supportingCriteria.teamStrategy,
+    candidateText
+  );
+  const mboMatch = buildWeightedSupportingMatch(
+    mboWeight,
+    "보직장 MBO",
+    input.supportingCriteria.managerMbo,
+    candidateText
+  );
+  const customMatch = buildWeightedSupportingMatch(
+    customWeight,
+    "기타 주관식 의견",
+    input.supportingCriteria.subjectiveOpinion,
+    candidateText
+  );
+  const supportingIndicatorMatches = [teamMatch, mboMatch, customMatch].filter(
+    (item): item is SupportingIndicatorMatch => item !== null
+  );
   const weightedCore =
     weightedAssessmentAverage(criterionAssessments) * (weightFor(input.weights, "jobDescription") / 100);
-  const weightedTeam =
-    (supportingIndicatorMatches[0]?.matchRate ?? 0) *
-    (weightFor(input.weights, "teamStrategy") / 100);
-  const weightedMbo =
-    (supportingIndicatorMatches[1]?.matchRate ?? 0) * (weightFor(input.weights, "mbo") / 100);
-  const weightedCustom =
-    (supportingIndicatorMatches[2]?.matchRate ?? 0) * (weightFor(input.weights, "custom") / 100);
+  const weightedTeam = (teamMatch?.matchRate ?? 0) * (teamWeight / 100);
+  const weightedMbo = (mboMatch?.matchRate ?? 0) * (mboWeight / 100);
+  const weightedCustom = (customMatch?.matchRate ?? 0) * (customWeight / 100);
   const requiredPenalty = missingRequiredCount(criterionAssessments) * 7;
   const confidence = buildMatchConfidence(criterionAssessments);
   const confidenceBonus = confidence.level === "근거 충분" ? 6 : 0;
@@ -567,6 +582,19 @@ function buildSupportingMatch(
     matchRate: assessment.score,
     evidence: evidenceLabel(assessment)
   };
+}
+
+function buildWeightedSupportingMatch(
+  weight: number,
+  source: string,
+  criteria: string,
+  candidateText: string
+): SupportingIndicatorMatch | null {
+  if (weight <= 0) {
+    return null;
+  }
+
+  return buildSupportingMatch(source, criteria, candidateText);
 }
 
 function buildMissingCapabilitiesFromAssessments(assessments: CriterionAssessment[]) {
