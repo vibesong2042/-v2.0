@@ -3,6 +3,7 @@
 ## Project
 
 RoleFit Workbench는 Next.js + TypeScript 기반 채용 매칭 MVP입니다.
+
 직무기술서, 추가 설명자료, 지원자 CV, 보조지표를 입력받아 담당부서 검토용 한국어 리포트를 생성합니다.
 
 ## Commands
@@ -13,6 +14,11 @@ RoleFit Workbench는 Next.js + TypeScript 기반 채용 매칭 MVP입니다.
 - Typecheck: `npm.cmd run lint`
 - Build: `npm.cmd run build`
 
+## Handoff
+
+- 회사 PC 인수인계 절차는 `docs/company-pc-handoff-guide.md`를 먼저 읽습니다.
+- 그룹장 보고용 데모 흐름은 `docs/group-lead-demo-workflow.md`를 참고합니다.
+
 ## Rules
 
 - 기본 응답과 리포트 출력은 한국어입니다.
@@ -20,15 +26,20 @@ RoleFit Workbench는 Next.js + TypeScript 기반 채용 매칭 MVP입니다.
 - 파일 파싱은 PDF, Word, Excel, TXT를 지원합니다.
 - 파일은 서버 메모리에서만 처리하고 저장하지 않습니다.
 - 리포트는 채용 자동 판정이 아니라 인사 담당자 검토 보조 자료입니다.
-- 근거 없는 단정은 피하고, 확인되지 않은 내용은 "문서상 확인 불가"로 표현합니다.
+- 근거 없는 단정은 피하고, 확인되지 않은 내용은 “문서상 확인 불가”로 표현합니다.
 - 실제 이력서, 개인정보, 회사 내부 문서, API 키, 인증정보는 repo에 커밋하지 않습니다.
+- mock 흐름은 삭제하지 않고, 실제 API는 adapter 방식으로 분리해서 추가합니다.
 
 ## Key Files
 
 - `app/page.tsx`: 4단계 워크플로우 UI
 - `app/components/ReportView.tsx`: 문서형 분석 리포트
+- `app/components/DepartmentReviewPanel.tsx`: 현업부서 검토 요청과 전화인터뷰 결과표 데모 UI
 - `lib/matching.ts`: mock 매칭 분석 및 리포트 텍스트 생성
 - `lib/documentExtraction.ts`: 문서 텍스트 추출
+- `lib/departmentReview.ts`: 부서장 검토 요청과 인터뷰 결과표 규칙
+- `lib/employees.ts`: mock 부서장 검색 데이터
+- `lib/mail.ts`: mock 메일 adapter
 - `app/api/extract-text/route.ts`: 파일 업로드/텍스트 추출 API
 - `tests/`: 핵심 검증 테스트
 
@@ -36,6 +47,8 @@ RoleFit Workbench는 Next.js + TypeScript 기반 채용 매칭 MVP입니다.
 
 - 서비스명: RoleFit Workbench
 - 보조 라벨: JD/CV Matching Console
-- "채용Post 설명자료"는 "추가 설명자료"로 변경 완료
+- “채용Post 설명자료”는 “추가 설명자료”로 변경 완료
 - 3단계는 가중치 설정과 분석 실행 버튼이 상단에 배치됨
 - 리포트는 표, 섹션, 질문 카드 기반 문서형 UI로 출력됨
+- 핵심지표는 카드형 시각화로 표시됨
+- 현업부서 검토 요청과 전화인터뷰 결과 회신은 mock 데모 모드로 구현됨
