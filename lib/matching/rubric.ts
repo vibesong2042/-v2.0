@@ -21,7 +21,7 @@ export function buildEvaluationRubric(input: CoreCriteriaInputs): EvaluationRubr
       required,
       evidenceNeed: required ? "높음" : category === "우대 역량" ? "낮음" : "보통",
       keywords,
-      synonyms: expandSynonyms(keywords)
+      synonyms: expandSynonyms(keywords, line)
     } satisfies RubricCriterion;
   });
 

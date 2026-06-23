@@ -42,6 +42,7 @@ function assessment({
       sentence: evidenceType === "none" ? "" : `${title} 관련 근거 문장`,
       confidence: evidenceType === "direct" ? "high" : "medium"
     },
+    supportingEvidence: [],
     missing: evidenceType === "none" ? [`${title}: 문서상 확인 불가`] : [],
     interviewQuestion: `${title} 경험을 설명해 주세요.`
   };

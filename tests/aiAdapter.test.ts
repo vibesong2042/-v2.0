@@ -103,6 +103,36 @@ describe("AI matching adapter boundary", () => {
     expect(report.adapterMetadata?.reason).toContain("Invalid adapter suggestion");
   });
 
+  it("falls back when adapter fabricates evidence that is not in the candidate document", async () => {
+    const baseline = analyzeStructuredMatch(analysisInput);
+    const report = await analyzeStructuredMatchWithAdapter({
+      ...analysisInput,
+      adapter: {
+        provider: "mock",
+        async suggest() {
+          return {
+            provider: "mock",
+            rubricCandidates: [],
+            evidenceMatches: [
+              {
+                criterionTitle: "React 기반 HR 도구 개발",
+                evidenceType: "direct",
+                sentence: "후보자는 존재하지 않는 사내 플랫폼을 5년 운영했습니다.",
+                rationale: "문서에 없는 근거"
+              }
+            ],
+            riskFlags: [],
+            confidence: "근거 충분"
+          };
+        }
+      }
+    });
+
+    expect(report.overallMatch.score).toBe(baseline.overallMatch.score);
+    expect(report.adapterMetadata?.status).toBe("fallback");
+    expect(report.adapterMetadata?.reason).toContain("not found in candidate document");
+  });
+
   it("does not call an adapter during default rule-based analysis", () => {
     const report = analyzeStructuredMatch(analysisInput);
 

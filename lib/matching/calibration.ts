@@ -35,7 +35,7 @@ export const MATCHING_CALIBRATION_SAMPLES: MatchingCalibrationSample[] = [
     name: "일부 기술만 맞는 후보",
     resume: "React 화면 개발 경험은 있으나 HR 도메인과 TypeScript 운영 경험은 문서에 없습니다.",
     reference: "",
-    min: 35,
+    min: 30,
     max: 74,
     confidence: "문서 근거 부족"
   },

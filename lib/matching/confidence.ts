@@ -1,35 +1,32 @@
 import type { CriterionAssessment, MatchConfidence } from "../matching";
 
 export function buildMatchConfidence(assessments: CriterionAssessment[]): MatchConfidence {
-  const directCount = assessments.filter((item) => item.evidence.type === "direct").length;
+  const supportedCount = assessments.filter(
+    (item) => item.evidence.type !== "none" && item.score >= 65
+  ).length;
   const noneCount = assessments.filter((item) => item.evidence.type === "none").length;
   const requiredMissing = missingRequiredCount(assessments);
   const weakRequired = assessments.filter(
     (item) => item.criterion.required && item.score < 65
   ).length;
-  const requiredWithoutDirectEvidence = assessments.filter(
-    (item) => item.criterion.required && item.evidence.type !== "direct"
-  ).length;
-  const ratio = assessments.length === 0 ? 0 : directCount / assessments.length;
+  const ratio = assessments.length === 0 ? 0 : supportedCount / assessments.length;
 
   if (
     ratio >= 0.6 &&
     requiredMissing === 0 &&
     weakRequired === 0 &&
-    requiredWithoutDirectEvidence === 0 &&
     noneCount <= 1
   ) {
     return {
       level: "근거 충분",
-      rationale: "핵심 항목 대부분에서 직접 근거가 확인됩니다."
+      rationale: "핵심 항목 대부분에서 문서 근거가 확인됩니다."
     };
   }
 
   if (
     noneCount >= Math.ceil(assessments.length / 2) ||
     requiredMissing > 0 ||
-    weakRequired > 0 ||
-    requiredWithoutDirectEvidence > 0
+    weakRequired > 0
   ) {
     return {
       level: "문서 근거 부족",

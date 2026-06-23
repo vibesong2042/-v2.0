@@ -1,5 +1,8 @@
 import type { AiMatchingAdapter, AiMatchingProvider } from "./matching/aiAdapter";
-import { sanitizeAiMatchingSuggestion } from "./matching/aiAdapter";
+import {
+  sanitizeAiMatchingSuggestion,
+  validateAiSuggestionEvidenceAgainstInput
+} from "./matching/aiAdapter";
 import { buildMatchConfidence, missingRequiredCount } from "./matching/confidence";
 import { evaluateCriterionEvidence, evidenceLabel } from "./matching/evidence";
 import { buildEvaluationRubric } from "./matching/rubric";
@@ -127,6 +130,7 @@ export type CriterionAssessment = {
   experienceScore: number;
   evidenceQualityScore: number;
   evidence: EvidenceMatch;
+  supportingEvidence: EvidenceMatch[];
   missing: string[];
   interviewQuestion: string;
 };
@@ -467,6 +471,24 @@ export async function analyzeStructuredMatchWithAdapter(
       };
     }
 
+    const evidenceValidation = validateAiSuggestionEvidenceAgainstInput(sanitized, {
+      coreCriteria: input.coreCriteria,
+      candidateInfo: input.candidateInfo,
+      supportingCriteria: input.supportingCriteria,
+      language: input.language
+    });
+
+    if (!evidenceValidation.valid) {
+      return {
+        ...baseReport,
+        adapterMetadata: {
+          status: "fallback",
+          provider: input.adapter.provider,
+          reason: evidenceValidation.error
+        }
+      };
+    }
+
     return {
       ...baseReport,
       adapterMetadata: {
@@ -693,7 +715,7 @@ function applyRequiredEvidenceCap(score: number, assessments: CriterionAssessmen
   const requiredAverage =
     requiredAssessments.reduce((sum, item) => sum + item.score, 0) / requiredAssessments.length;
 
-  return requiredAverage < 55 ? Math.min(score, 69) : score;
+  return requiredAverage <= 55 ? Math.min(score, 69) : score;
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

@@ -119,6 +119,28 @@ export function sanitizeAiMatchingSuggestion(value: unknown): AiMatchingSuggesti
   };
 }
 
+export function validateAiSuggestionEvidenceAgainstInput(
+  suggestion: AiMatchingSuggestion,
+  input: AiMatchingAdapterInput
+): AiMatchingValidationResult {
+  const candidateText = normalize(input.candidateInfo.candidateResume);
+
+  for (const evidence of suggestion.evidenceMatches) {
+    if (evidence.evidenceType === "none" || evidence.sentence.trim().length === 0) {
+      continue;
+    }
+
+    if (!candidateText.includes(normalize(evidence.sentence))) {
+      return {
+        valid: false,
+        error: "Adapter evidence sentence was not found in candidate document."
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
 export class MockAiMatchingAdapter implements AiMatchingAdapter {
   provider: AiMatchingProvider = "mock";
 
@@ -187,4 +209,8 @@ function isEvidenceSuggestion(value: unknown): value is AiEvidenceSuggestion {
     typeof value.sentence === "string" &&
     typeof value.rationale === "string"
   );
+}
+
+function normalize(value: string) {
+  return value.replace(/\s+/g, " ").trim();
 }
