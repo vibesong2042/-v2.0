@@ -12,6 +12,8 @@
 
 Use this protocol before emitting a final `<proposed_plan>` when the user explicitly requests repeated critique, subagent critique, or a high-rigor plan review. Also consider it for high-risk plans involving security, personal data, data deletion, migrations, production impact, large refactors, or multiple API/service boundaries. For small or routine plans, default to `fast` or `standard` review instead.
 
+For RoleFit high-risk work, also consult `docs/rolefit-high-risk-review-harness.md` before implementation. Use it as a checklist and handoff template only. Do not install or run `my_harness`, create global skills, overwrite `AGENTS.md` or `CLAUDE.md`, enable external reviewers, or use real resumes, company documents, API keys, or Knox credentials without explicit approval.
+
 ### Terms
 
 - `Review target draft` means the internal plan draft prepared before the final user-facing response.
