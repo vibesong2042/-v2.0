@@ -1,9 +1,111 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 
-import { extractTextFromFile } from "../lib/documentExtraction";
+import {
+  LocalDocumentParserAdapter,
+  extractTextFromFile,
+  validateDocumentFileSize
+} from "../lib/documentExtraction";
 
 describe("document extraction", () => {
+  it("returns additive local extraction metadata without changing text compatibility", async () => {
+    const result = await extractTextFromFile({
+      fileName: "resume.txt",
+      fileType: "text/plain",
+      buffer: Buffer.from("RoleFit verified extraction text ".repeat(4), "utf8")
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (result.ok) {
+      expect(result.text).toBe(result.plainText);
+      expect(result.extractionMethod).toBe("local");
+      expect(result.provider).toBe("local");
+      expect(result.quality?.level).toBe("high");
+      expect(result.quality?.signals).toEqual([]);
+      expect(result.quality?.metrics?.textLength).toBe(result.plainText.length);
+      expect(result.warnings).toEqual([]);
+      expect(result.requiresReview).toBe(false);
+      expect("pages" in result).toBe(false);
+      expect("elements" in result).toBe(false);
+      expect("tables" in result).toBe(false);
+      expect("markdown" in result).toBe(false);
+    }
+  });
+
+  it("uses the local document parser adapter without changing the extraction contract", async () => {
+    const adapter = new LocalDocumentParserAdapter();
+    const result = await adapter.parse({
+      fileName: "resume.txt",
+      fileType: "text/plain",
+      buffer: Buffer.from("RoleFit local adapter extraction text ".repeat(3), "utf8")
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (result.ok) {
+      expect(result.text).toBe(result.plainText);
+      expect(result.extractionMethod).toBe("local");
+      expect(result.provider).toBe("local");
+      expect(result.quality?.level).toBe("high");
+    }
+  });
+
+  it("warns when local extraction returns a very short text", async () => {
+    const result = await extractTextFromFile({
+      fileName: "short.txt",
+      fileType: "text/plain",
+      buffer: Buffer.from("짧음", "utf8")
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (result.ok) {
+      expect(result.requiresReview).toBe(true);
+      expect(result.warnings.join(" ")).toContain("짧");
+    }
+  });
+
+  it("warns when extracted text contains replacement characters", async () => {
+    const result = await extractTextFromFile({
+      fileName: "broken.txt",
+      fileType: "text/plain",
+      buffer: Buffer.from("정상 텍스트 ".repeat(8) + "����", "utf8")
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (result.ok) {
+      expect(result.requiresReview).toBe(true);
+      expect(result.warnings.join(" ")).toContain("깨진");
+      expect(result.quality?.level).toBe("low");
+      expect(result.quality?.signals).toContain("BROKEN_CHARACTERS");
+      expect(JSON.stringify(result.quality)).not.toContain("정상 텍스트");
+    }
+  });
+
+  it("warns when a PDF looks like it may need OCR", async () => {
+    const result = await extractTextFromFile({
+      fileName: "scan.pdf",
+      fileType: "application/pdf",
+      buffer: createMinimalPdf("tiny")
+    });
+
+    expect(result.ok).toBe(true);
+
+    if (result.ok) {
+      expect(result.requiresReview).toBe(true);
+      expect(result.warnings.join(" ")).toContain("OCR");
+      expect(result.quality?.level).toBe("low");
+      expect(result.quality?.signals).toContain("OCR_MAY_BE_REQUIRED");
+    }
+  });
+
+  it("validates file size before a caller reads the file body", () => {
+    expect(validateDocumentFileSize(10 * 1024 * 1024)).toBe("");
+    expect(validateDocumentFileSize(10 * 1024 * 1024 + 1)).toContain("10MB");
+  });
+
   it("extracts UTF-8 text files", async () => {
     const result = await extractTextFromFile({
       fileName: "resume.txt",

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { extractTextFromFile } from "../../../lib/documentExtraction";
+import {
+  extractTextFromFile,
+  validateDocumentFileName,
+  validateDocumentFileSize
+} from "../../../lib/documentExtraction";
 
 export const runtime = "nodejs";
 
@@ -19,10 +23,26 @@ export async function POST(request: Request) {
     );
   }
 
+  const fileType = file.type || "application/octet-stream";
+  const fileNameError = validateDocumentFileName(file.name);
+  const fileSizeError = validateDocumentFileSize(file.size);
+
+  if (fileNameError || fileSizeError) {
+    return NextResponse.json(
+      {
+        ok: false,
+        fileName: file.name,
+        fileType,
+        error: fileNameError || fileSizeError
+      },
+      { status: 400 }
+    );
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer());
   const result = await extractTextFromFile({
     fileName: file.name,
-    fileType: file.type || "application/octet-stream",
+    fileType,
     buffer
   });
 

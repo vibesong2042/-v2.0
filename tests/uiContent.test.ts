@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 
 const pageSource = () => readFileSync("app/page.tsx", "utf8");
 const reportSource = () => readFileSync("app/components/ReportView.tsx", "utf8");
+const nextConfigSource = () => readFileSync("next.config.ts", "utf8");
+const extractTextRouteSource = () => readFileSync("app/api/extract-text/route.ts", "utf8");
+const documentExtractionSource = () => readFileSync("lib/documentExtraction.ts", "utf8");
+const documentInputCardSource = () =>
+  readFileSync("app/components/DocumentInputCard.tsx", "utf8");
 const departmentReviewPanelSource = () =>
   readFileSync("app/components/DepartmentReviewPanel.tsx", "utf8");
 
@@ -68,6 +73,53 @@ describe("RoleFit Workbench UI content", () => {
 
     expect(source).toContain("DepartmentReviewPanel");
     expect(source).toContain("<DepartmentReviewPanel");
+  });
+
+  it("shows document extraction review controls before analysis", () => {
+    const source = documentInputCardSource();
+
+    expect(source).toContain("내용 확인 완료");
+    expect(source).toContain("경고를 확인하고 이 내용으로 진행");
+    expect(source).toContain("서버 메모리");
+    expect(source).toContain("외부 API로 전송하지 않습니다");
+    expect(source).toContain("requestIdRef");
+  });
+
+  it("shows local extraction quality without exposing external provider controls", () => {
+    const source = documentInputCardSource();
+
+    expect(source).toContain("추출 품질");
+    expect(source).toContain("qualityLabel");
+    expect(source).not.toContain("Document AI");
+    expect(source).not.toContain("OCR API");
+    expect(source).not.toContain("Azure");
+    expect(source).not.toContain("Google");
+  });
+
+  it("keeps PDF parsing on the Node server boundary", () => {
+    const config = nextConfigSource();
+    const route = extractTextRouteSource();
+    const inputCard = documentInputCardSource();
+
+    expect(config).toContain("serverExternalPackages");
+    expect(config).toContain("pdf-parse");
+    expect(route).toContain('runtime = "nodejs"');
+    expect(inputCard).not.toContain('from "pdf-parse"');
+    expect(inputCard).not.toContain('from "pdfjs-dist"');
+    expect(inputCard).not.toContain("GlobalWorkerOptions");
+    expect(inputCard).not.toContain("workerSrc");
+  });
+
+  it("keeps document extraction local-only without external provider hooks", () => {
+    const source = documentExtractionSource();
+
+    expect(source).toContain("LocalDocumentParserAdapter");
+    expect(source).toContain('provider: "local"');
+    expect(source).not.toContain("process.env");
+    expect(source).not.toContain("fetch(");
+    expect(source).not.toContain("Azure");
+    expect(source).not.toContain("Google");
+    expect(source).not.toContain("Document AI");
   });
 
   it("renders the department review request and phone interview workflow", () => {

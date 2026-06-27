@@ -85,11 +85,20 @@ export default function Home() {
   const analysisState = useMemo(
     () =>
       canRunAnalysis({
-        hasJobDescription: core.jobDescription.text.trim().length > 0,
-        hasCandidateResume: candidate.resume.text.trim().length > 0,
+        requiredDocuments: [
+          { label: "직무기술서", document: core.jobDescription },
+          { label: "지원자 CV/이력서", document: candidate.resume }
+        ],
+        optionalDocuments: [
+          { label: "추가 설명자료", document: core.additionalMaterial },
+          { label: "기존 입사자 CV/이력서", document: candidate.referenceResume },
+          { label: "팀별 전략자료", document: supporting.teamStrategy },
+          { label: "보직장 MBO", document: supporting.managerMbo },
+          { label: "기타 주관식 의견", document: supporting.subjectiveOpinion }
+        ],
         weights
       }),
-    [candidate.resume.text, core.jobDescription.text, weights]
+    [candidate, core, supporting, weights]
   );
 
   function runAnalysis() {

@@ -1,21 +1,11 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useRef, useState } from "react";
+import type { ExtractTextResult } from "../../lib/documentExtraction";
 import { DocumentInput } from "../../lib/matching";
+import { markDocumentTextChanged, markDocumentVerified } from "../../lib/workflow";
 
-type ExtractResponse =
-  | {
-      ok: true;
-      fileName: string;
-      fileType: string;
-      text: string;
-    }
-  | {
-      ok: false;
-      fileName: string;
-      fileType: string;
-      error: string;
-    };
+const GENERIC_PARSE_ERROR = "문서 텍스트 추출에 실패했습니다. 수동 입력으로 보정해 주세요.";
 
 export function DocumentInputCard({
   label,
@@ -32,46 +22,95 @@ export function DocumentInputCard({
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestIdRef = useRef(0);
+  const warnings = value.extraction?.warnings ?? [];
+  const quality = value.extraction?.quality;
+  const qualityLabel = quality
+    ? {
+        high: "양호",
+        medium: "확인 필요",
+        low: "주의 필요"
+      }[quality.level]
+    : "";
+  const hasText = value.text.trim().length > 0;
+  const isVerified = value.extraction?.verified === true;
+  const verifyButtonLabel =
+    warnings.length > 0 ? "경고를 확인하고 이 내용으로 진행" : "내용 확인 완료";
 
   async function handleFile(file: File) {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     onChange({
       ...value,
       fileName: file.name,
       fileType: file.type || "application/octet-stream",
       fileSize: file.size,
       parseStatus: "parsing",
-      parseError: ""
+      parseError: "",
+      extraction: undefined
     });
 
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch("/api/extract-text", {
-      method: "POST",
-      body: formData
-    });
-    const result = (await response.json()) as ExtractResponse;
 
-    if (result.ok) {
+    try {
+      const response = await fetch("/api/extract-text", {
+        method: "POST",
+        body: formData
+      });
+      const result = (await response.json()) as ExtractTextResult;
+
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      if (result.ok) {
+        onChange({
+          ...value,
+          text: result.plainText,
+          fileName: result.fileName,
+          fileType: result.fileType,
+          fileSize: file.size,
+          parseStatus: "parsed",
+          parseError: "",
+          extraction: {
+            method: "local",
+            warnings: result.warnings,
+            requiresReview: result.requiresReview,
+            confidence: result.confidence,
+            provider: result.provider,
+            quality: result.quality,
+            verified: false
+          }
+        });
+        return;
+      }
+
       onChange({
         ...value,
-        text: result.text,
-        fileName: result.fileName,
-        fileType: result.fileType,
+        fileName: result.fileName || file.name,
+        fileType: result.fileType || file.type,
         fileSize: file.size,
-        parseStatus: "parsed",
-        parseError: ""
+        parseStatus: "failed",
+        parseError: result.error,
+        extraction: undefined
       });
-      return;
-    }
+    } catch {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
 
-    onChange({
-      ...value,
-      fileName: result.fileName || file.name,
-      fileType: result.fileType || file.type,
-      fileSize: file.size,
-      parseStatus: "failed",
-      parseError: result.error
-    });
+      onChange({
+        ...value,
+        fileName: file.name,
+        fileType: file.type || "application/octet-stream",
+        fileSize: file.size,
+        parseStatus: "failed",
+        parseError: GENERIC_PARSE_ERROR,
+        extraction: undefined
+      });
+    }
   }
 
   function onDrop(event: DragEvent<HTMLDivElement>) {
@@ -92,6 +131,11 @@ export function DocumentInputCard({
     }
   }
 
+  function onTextChange(text: string) {
+    requestIdRef.current += 1;
+    onChange(markDocumentTextChanged(value, text));
+  }
+
   return (
     <section className="docCard">
       <div className="docHeader">
@@ -107,13 +151,7 @@ export function DocumentInputCard({
 
       <textarea
         value={value.text}
-        onChange={(event) =>
-          onChange({
-            ...value,
-            text: event.target.value,
-            parseStatus: value.parseStatus ?? "idle"
-          })
-        }
+        onChange={(event) => onTextChange(event.target.value)}
       />
 
       <div
@@ -134,6 +172,7 @@ export function DocumentInputCard({
         />
         <strong>파일을 끌어오거나 선택하세요</strong>
         <span>PDF, Word, Excel, TXT 파일을 지원합니다.</span>
+        <small>현재 파일은 서버 메모리에서만 텍스트 추출하며 저장하지 않고 외부 API로 전송하지 않습니다.</small>
         <button type="button" onClick={() => inputRef.current?.click()}>
           파일 선택
         </button>
@@ -142,8 +181,42 @@ export function DocumentInputCard({
       {value.parseStatus === "parsing" ? <p className="parseInfo">문서 텍스트를 추출하고 있습니다.</p> : null}
       {value.parseStatus === "parsed" ? <p className="parseOk">추출된 텍스트를 입력란에 반영했습니다.</p> : null}
       {value.parseStatus === "failed" ? (
-        <p className="parseError">{value.parseError || "문서 파싱에 실패했습니다. 수동 입력으로 보정하세요."}</p>
+        <p className="parseError">{value.parseError || GENERIC_PARSE_ERROR}</p>
       ) : null}
+
+      <div className="reviewBox">
+        {quality ? (
+          <div className={`qualityBox ${quality.level}`}>
+            <div className="qualityHeader">
+              <strong>추출 품질</strong>
+              <span className="qualityBadge">{qualityLabel}</span>
+            </div>
+            <small>
+              텍스트 {quality.metrics?.textLength ?? 0}자 · 줄 {quality.metrics?.lineCount ?? 0}개
+            </small>
+          </div>
+        ) : null}
+        {warnings.length > 0 ? (
+          <div className="extractionWarnings">
+            <strong>추출 결과 확인 필요</strong>
+            <ul>
+              {warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <div className="reviewActions">
+          <button
+            disabled={!hasText || value.parseStatus === "parsing"}
+            onClick={() => onChange(markDocumentVerified(value))}
+            type="button"
+          >
+            {verifyButtonLabel}
+          </button>
+          {isVerified ? <span className="reviewVerified">확인 완료</span> : null}
+        </div>
+      </div>
     </section>
   );
 }

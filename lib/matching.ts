@@ -74,6 +74,19 @@ export type DocumentInput = {
   fileSize?: number;
   parseStatus?: "idle" | "parsing" | "parsed" | "failed";
   parseError?: string;
+  extraction?: {
+    method: "manual" | "local";
+    warnings: string[];
+    requiresReview: boolean;
+    verified: boolean;
+    confidence?: number;
+    provider?: "local";
+    quality?: {
+      level: "high" | "medium" | "low";
+      signals: string[];
+      metrics?: Record<string, number>;
+    };
+  };
 };
 
 export type CoreCriteriaInputs = {

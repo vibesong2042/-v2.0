@@ -6,11 +6,26 @@ export type ExtractTextInput = {
   buffer: Buffer<ArrayBuffer>;
 };
 
+export type DocumentExtractionProvider = "local";
+
+export type ExtractionQuality = {
+  level: "high" | "medium" | "low";
+  signals: string[];
+  metrics: Record<string, number>;
+};
+
 export type ExtractTextSuccess = {
   ok: true;
   fileName: string;
   fileType: string;
   text: string;
+  plainText: string;
+  extractionMethod: "local";
+  provider: DocumentExtractionProvider;
+  warnings: string[];
+  requiresReview: boolean;
+  confidence?: number;
+  quality: ExtractionQuality;
 };
 
 export type ExtractTextFailure = {
@@ -22,13 +37,40 @@ export type ExtractTextFailure = {
 
 export type ExtractTextResult = ExtractTextSuccess | ExtractTextFailure;
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+export type DocumentParserAdapter = {
+  provider: DocumentExtractionProvider;
+  parse(input: ExtractTextInput): Promise<ExtractTextResult>;
+};
+
+export const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+const SUPPORTED_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "md"];
+
+export class LocalDocumentParserAdapter implements DocumentParserAdapter {
+  readonly provider = "local";
+
+  parse(input: ExtractTextInput): Promise<ExtractTextResult> {
+    return extractTextWithLocalParser(input);
+  }
+}
+
+const localDocumentParserAdapter = new LocalDocumentParserAdapter();
 
 export async function extractTextFromFile(input: ExtractTextInput): Promise<ExtractTextResult> {
-  const extension = getExtension(input.fileName);
+  return localDocumentParserAdapter.parse(input);
+}
 
-  if (input.buffer.length > MAX_FILE_SIZE) {
-    return fail(input, "파일 크기는 10MB 이하만 지원합니다.");
+async function extractTextWithLocalParser(input: ExtractTextInput): Promise<ExtractTextResult> {
+  const extension = getExtension(input.fileName);
+  const fileNameError = validateDocumentFileName(input.fileName);
+  const fileSizeError = validateDocumentFileSize(input.buffer.length);
+
+  if (fileNameError) {
+    return fail(input, fileNameError);
+  }
+
+  if (fileSizeError) {
+    return fail(input, fileSizeError);
   }
 
   try {
@@ -60,11 +102,21 @@ export async function extractTextFromFile(input: ExtractTextInput): Promise<Extr
 }
 
 function success(input: ExtractTextInput, text: string): ExtractTextSuccess {
+  const plainText = normalizeText(text);
+  const quality = diagnoseLocalExtraction(plainText, getExtension(input.fileName));
+
   return {
     ok: true,
     fileName: input.fileName,
     fileType: input.fileType,
-    text: normalizeText(text)
+    text: plainText,
+    plainText,
+    extractionMethod: "local",
+    provider: "local",
+    warnings: quality.warnings,
+    requiresReview: quality.requiresReview,
+    confidence: quality.confidence,
+    quality: quality.quality
   };
 }
 
@@ -79,6 +131,24 @@ function fail(input: ExtractTextInput, error: string): ExtractTextFailure {
 
 function getExtension(fileName: string) {
   return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+export function validateDocumentFileName(fileName: string) {
+  const extension = getExtension(fileName);
+
+  if (!SUPPORTED_EXTENSIONS.includes(extension)) {
+    return "지원하지 않는 파일 형식입니다. PDF, Word, Excel, TXT 파일을 첨부하세요.";
+  }
+
+  return "";
+}
+
+export function validateDocumentFileSize(size: number) {
+  if (size > MAX_FILE_SIZE) {
+    return "파일 크기는 10MB 이하만 지원합니다.";
+  }
+
+  return "";
 }
 
 function isTextExtension(extension: string) {
@@ -132,6 +202,61 @@ async function extractWorkbook(buffer: Buffer<ArrayBuffer>, extension: string) {
 
 function normalizeText(text: string) {
   return text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function diagnoseLocalExtraction(plainText: string, extension: string) {
+  const warnings: string[] = [];
+  const signals: string[] = [];
+  const trimmed = plainText.trim();
+  const characters = Array.from(trimmed);
+  const replacementCount = characters.filter((character) => character === "�").length;
+  const replacementRatio = characters.length > 0 ? replacementCount / characters.length : 0;
+  const lineCount = trimmed ? trimmed.split(/\n+/).filter(Boolean).length : 0;
+
+  if (trimmed.length < 50) {
+    warnings.push("추출된 텍스트가 매우 짧아 원문 확인이 필요합니다.");
+    signals.push("SHORT_TEXT");
+  }
+
+  if (replacementCount > 0 || replacementRatio >= 0.01) {
+    warnings.push("추출 텍스트에 깨진 문자가 포함되어 원문 확인이 필요합니다.");
+    signals.push("BROKEN_CHARACTERS");
+  }
+
+  if (extension === "pdf" && trimmed.length < 50) {
+    warnings.push("PDF 텍스트가 거의 추출되지 않았습니다. 스캔 PDF이거나 OCR이 필요할 수 있습니다.");
+    signals.push("OCR_MAY_BE_REQUIRED");
+  }
+
+  if (extension === "doc") {
+    warnings.push("DOC는 레거시 Word 형식이므로 추출 결과 확인이 필요합니다.");
+    signals.push("LEGACY_DOC");
+  }
+
+  const level =
+    signals.includes("BROKEN_CHARACTERS") ||
+    signals.includes("OCR_MAY_BE_REQUIRED") ||
+    trimmed.length < 50
+      ? "low"
+      : signals.length > 0
+        ? "medium"
+        : "high";
+
+  return {
+    warnings,
+    requiresReview: warnings.length > 0,
+    confidence: warnings.length > 0 ? 0.65 : 0.95,
+    quality: {
+      level,
+      signals,
+      metrics: {
+        textLength: trimmed.length,
+        lineCount,
+        replacementCharacterRatio: Number(replacementRatio.toFixed(4)),
+        warningCount: warnings.length
+      }
+    } satisfies ExtractionQuality
+  };
 }
 
 function worksheetToText(worksheet: ExcelJS.Worksheet) {

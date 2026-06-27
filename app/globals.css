@@ -331,6 +331,104 @@ textarea {
   color: var(--danger);
 }
 
+.reviewBox {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #dbe5f0;
+  border-radius: 10px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.qualityBox {
+  border: 1px solid #dbe5f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--muted);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.qualityBox.medium {
+  border-color: #fedf89;
+  background: #fffbeb;
+}
+
+.qualityBox.low {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.qualityHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.qualityHeader strong {
+  color: var(--ink);
+}
+
+.qualityBadge {
+  border-radius: 999px;
+  background: #edf5ff;
+  color: var(--blue);
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.qualityBox.medium .qualityBadge {
+  background: #fff1c2;
+  color: #92400e;
+}
+
+.qualityBox.low .qualityBadge {
+  background: #fee2e2;
+  color: var(--danger);
+}
+
+.extractionWarnings {
+  border: 1px solid #fedf89;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.extractionWarnings strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.extractionWarnings ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.reviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.reviewVerified {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #ecfdf3;
+  color: var(--ok);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .weightPanel,
 .languagePanel {
   margin-top: 14px;
