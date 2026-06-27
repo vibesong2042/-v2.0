@@ -27,7 +27,7 @@ export function evaluateCriterionEvidence(
   const sentences = splitSentences(candidateText);
   const candidates = findEvidenceCandidates(criterion, sentences);
   const best = candidates[0] ?? { sentence: "", score: 0 };
-  const evidenceText = best.sentence || candidateText;
+  const evidenceText = best.sentence || (hasKeywordOnlySignal(candidateText) ? candidateText : "");
   const keywordScore = directKeywordScore(criterion.keywords, tokenize(evidenceText));
   const semanticScore = semanticMatchScore(criterion, evidenceText);
   const experienceScore = experienceSignalScore(evidenceText);
@@ -35,7 +35,13 @@ export function evaluateCriterionEvidence(
   const rawScore = clampScore(
     keywordScore * 0.24 + semanticScore * 0.31 + experienceScore * 0.15 + evidenceQualityScore * 0.3
   );
-  const score = applyEvidenceScoreCap(rawScore, best.sentence, experienceScore, evidenceQualityScore);
+  const cappedScore = applyEvidenceScoreCap(
+    rawScore,
+    best.sentence,
+    experienceScore,
+    evidenceQualityScore
+  );
+  const score = cappedScore.score;
   const evidence = buildEvidenceMatch(score, keywordScore, semanticScore, best.sentence);
   const supportingEvidence = candidates
     .slice(1, 3)
@@ -53,6 +59,16 @@ export function evaluateCriterionEvidence(
     semanticScore,
     experienceScore,
     evidenceQualityScore,
+    scoreTrace: {
+      keywordScore,
+      semanticScore,
+      experienceScore,
+      evidenceQualityScore,
+      rawScore,
+      finalScore: score,
+      capApplied: cappedScore.capApplied,
+      capReason: cappedScore.capReason
+    },
     evidence,
     supportingEvidence,
     missing,
@@ -152,6 +168,15 @@ function hasConcreteDeliverySignal(sentence: string) {
   return CONCRETE_DELIVERY_PATTERN.test(sentence);
 }
 
+function hasKeywordOnlySignal(text: string) {
+  return (
+    /(키워드|용어|개념).*(이해|정리|숙지)|\bkeyword\b/i.test(text) &&
+    !/없음|없다|없습니다|경험 없음|경험은 없음|경험은 없습니다|학습 중|튜토리얼|교육\s*(수강|을 수강)|강의\s*(수강|를 수강)|관심 있음|관심이 있음|관심이 있으며|희망|예정/u.test(
+      text
+    )
+  );
+}
+
 function applyEvidenceScoreCap(
   score: number,
   sentence: string,
@@ -159,12 +184,20 @@ function applyEvidenceScoreCap(
   evidenceQualityScore: number
 ) {
   if (!sentence || isNegativeOrLearningOnly(sentence) || isUnsupportedWeakEvidence(sentence)) {
-    return Math.min(score, 44);
+    return {
+      score: Math.min(score, 44),
+      capApplied: score > 44 || !sentence,
+      capReason: "noEvidence" as const
+    };
   }
 
   if (experienceScore < 35 && evidenceQualityScore < 45) {
-    return Math.min(score, 55);
+    return {
+      score: Math.min(score, 55),
+      capApplied: score > 55,
+      capReason: "weakExperienceEvidence" as const
+    };
   }
 
-  return score;
+  return { score, capApplied: false, capReason: "none" as const };
 }

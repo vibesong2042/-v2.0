@@ -135,6 +135,17 @@ export type EvidenceMatch = {
   confidence: "high" | "medium" | "low";
 };
 
+export type CriterionScoreTrace = {
+  keywordScore: number;
+  semanticScore: number;
+  experienceScore: number;
+  evidenceQualityScore: number;
+  rawScore: number;
+  finalScore: number;
+  capApplied: boolean;
+  capReason: "none" | "noEvidence" | "weakExperienceEvidence";
+};
+
 export type CriterionAssessment = {
   criterion: RubricCriterion;
   score: number;
@@ -142,6 +153,7 @@ export type CriterionAssessment = {
   semanticScore: number;
   experienceScore: number;
   evidenceQualityScore: number;
+  scoreTrace: CriterionScoreTrace;
   evidence: EvidenceMatch;
   supportingEvidence: EvidenceMatch[];
   missing: string[];

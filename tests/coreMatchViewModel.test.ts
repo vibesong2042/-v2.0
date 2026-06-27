@@ -37,6 +37,16 @@ function assessment({
     semanticScore: score,
     experienceScore: score,
     evidenceQualityScore: score,
+    scoreTrace: {
+      keywordScore: score,
+      semanticScore: score,
+      experienceScore: score,
+      evidenceQualityScore: score,
+      rawScore: score,
+      finalScore: score,
+      capApplied: false,
+      capReason: "none"
+    },
     evidence: {
       type: evidenceType,
       sentence: evidenceType === "none" ? "" : `${title} 관련 근거 문장`,

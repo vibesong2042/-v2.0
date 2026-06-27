@@ -3,6 +3,10 @@ export type DomainDictionaryKey =
   | "software"
   | "dataAi"
   | "robotics"
+  | "manufacturingAi"
+  | "manufacturingSoftware"
+  | "roboticsAutomation"
+  | "circuitHardware"
   | "salesBizdev"
   | "hrOps"
   | "manufacturingQuality";
@@ -33,6 +37,32 @@ export const DOMAIN_SYNONYM_GROUPS: DomainSynonymGroup[] = [
   { domain: "dataAi", terms: ["데이터", "data", "dataset"] },
   { domain: "dataAi", terms: ["파이프라인", "pipeline"] },
 
+  { domain: "manufacturingAi", terms: ["제조 데이터", "manufacturing data", "production data"] },
+  { domain: "manufacturingAi", terms: ["불량 검출", "불량 감지", "defect detection", "anomaly detection"] },
+  { domain: "manufacturingAi", terms: ["비전 검사", "vision inspection", "machine vision", "영상처리", "2d", "3d"] },
+  { domain: "manufacturingAi", terms: ["딥러닝", "deep learning", "dl"] },
+  { domain: "manufacturingAi", terms: ["mlops", "modelops", "모델 운영", "모델 배포", "model deployment"] },
+  { domain: "manufacturingAi", terms: ["모델 검증", "model validation", "성능 검증"] },
+
+  { domain: "manufacturingSoftware", terms: ["스마트팩토리", "smart factory"] },
+  {
+    domain: "manufacturingSoftware",
+    terms: ["amr", "agv", "무인 모바일 로봇", "mobile robot", "autonomous mobile robot"]
+  },
+  {
+    domain: "manufacturingSoftware",
+    terms: ["digital twin", "디지털 트윈", "가상공장", "virtual factory"]
+  },
+  {
+    domain: "manufacturingSoftware",
+    terms: ["경로 계획", "path planning", "route planning", "자율 주행 경로"]
+  },
+  { domain: "manufacturingSoftware", terms: ["모션 제어", "motion control"] },
+  { domain: "manufacturingSoftware", terms: ["위치 인식", "localization", "positioning"] },
+  { domain: "manufacturingSoftware", terms: ["원격 제어", "remote control"] },
+  { domain: "manufacturingSoftware", terms: ["스케줄링", "scheduling", "fleet scheduling"] },
+  { domain: "manufacturingSoftware", terms: ["시뮬레이션", "simulation", "최적화", "optimization"] },
+
   { domain: "robotics", terms: ["ros", "ros2", "robot operating system"] },
   { domain: "robotics", terms: ["c++", "cpp", "c plus plus"] },
   { domain: "robotics", terms: ["제어", "control", "controller"] },
@@ -43,6 +73,26 @@ export const DOMAIN_SYNONYM_GROUPS: DomainSynonymGroup[] = [
   { domain: "robotics", terms: ["real-time", "realtime", "실시간"] },
   { domain: "robotics", terms: ["kinematics", "dynamics"] },
   { domain: "robotics", terms: ["actuator", "motor", "joint", "모터", "조인트"] },
+
+  { domain: "roboticsAutomation", terms: ["산업로봇", "industrial robot", "robotics"] },
+  { domain: "roboticsAutomation", terms: ["로봇 응용", "robot application", "robot application software"] },
+  { domain: "roboticsAutomation", terms: ["자동화 설비", "automation equipment", "factory automation"] },
+  { domain: "roboticsAutomation", terms: ["액추에이터", "actuator", "motor", "모터"] },
+  { domain: "roboticsAutomation", terms: ["센서", "sensor", "센서 인터페이스"] },
+  { domain: "roboticsAutomation", terms: ["실시간 제어", "real-time control", "realtime control"] },
+
+  { domain: "circuitHardware", terms: ["회로 설계", "circuit design", "electronics design"] },
+  { domain: "circuitHardware", terms: ["전장", "electrical system", "electrical design"] },
+  { domain: "circuitHardware", terms: ["pcb", "pcb bring-up", "board bring-up"] },
+  { domain: "circuitHardware", terms: ["rf", "무선통신", "wireless"] },
+  { domain: "circuitHardware", terms: ["emc", "emi", "electromagnetic compatibility", "전자파"] },
+  { domain: "circuitHardware", terms: ["전력 회로", "power circuit", "power electronics"] },
+  { domain: "circuitHardware", terms: ["모터 제어", "motor control", "bldc"] },
+  { domain: "circuitHardware", terms: ["센서 인터페이스", "sensor interface"] },
+  { domain: "circuitHardware", terms: ["plc", "programmable logic controller"] },
+  { domain: "circuitHardware", terms: ["fpga"] },
+  { domain: "circuitHardware", terms: ["임베디드 회로", "embedded circuit", "embedded hardware"] },
+  { domain: "circuitHardware", terms: ["회로 검증", "검증 장비", "measurement", "oscilloscope", "logic analyzer"] },
 
   { domain: "salesBizdev", terms: ["영업", "sales", "business development", "bizdev"] },
   { domain: "salesBizdev", terms: ["b2b", "enterprise"] },
