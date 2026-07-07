@@ -24,6 +24,7 @@ http://127.0.0.1:3000
 회사 PC에서 처음 내려받아 실행하는 자세한 절차는 아래 문서를 보세요.
 
 - [회사 PC 인수인계 가이드](docs/company-pc-handoff-guide.md)
+- [현재 개발상태 인수인계](docs/current-development-handoff.md)
 
 기본 흐름은 다음과 같습니다.
 
@@ -48,15 +49,16 @@ npm.cmd run lint
 npm.cmd run build
 ```
 
-## 데모 범위
+## 현재 지원 범위
 
-현재 데모에서 가능한 것:
+현재 개발 결과물에서 가능한 것:
 
 - 직무기술서/추가 설명자료 입력
 - 지원자 CV/이력서 입력
 - PDF, Word, Excel, TXT 파일 텍스트 추출
 - 보조지표와 가중치 설정
 - 매칭 분석 리포트 생성
+- 리포트 TXT/PDF 다운로드
 - 핵심지표별 매칭 카드 확인
 - 현업부서 검토 요청 mock 흐름
 - 부서장 화면 미리보기
