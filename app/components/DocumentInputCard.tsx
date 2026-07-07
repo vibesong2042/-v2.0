@@ -3,7 +3,7 @@
 import { ChangeEvent, DragEvent, useRef, useState } from "react";
 import type { ExtractTextResult } from "../../lib/documentExtraction";
 import { DocumentInput } from "../../lib/matching";
-import { markDocumentTextChanged, markDocumentVerified } from "../../lib/workflow";
+import { markDocumentCleared, markDocumentTextChanged, markDocumentVerified } from "../../lib/workflow";
 
 const GENERIC_PARSE_ERROR = "문서 텍스트 추출에 실패했습니다. 수동 입력으로 보정해 주세요.";
 
@@ -136,6 +136,14 @@ export function DocumentInputCard({
     onChange(markDocumentTextChanged(value, text));
   }
 
+  function onClearDocument() {
+    requestIdRef.current += 1;
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    onChange(markDocumentCleared(value));
+  }
+
   return (
     <section className="docCard">
       <div className="docHeader">
@@ -146,7 +154,14 @@ export function DocumentInputCard({
           </h3>
           <p>{helperText}</p>
         </div>
-        {value.fileName ? <span className="fileBadge">{value.fileName}</span> : null}
+        {value.fileName ? (
+          <div className="fileActions">
+            <span className="fileBadge">{value.fileName}</span>
+            <button type="button" onClick={onClearDocument}>
+              첨부 삭제
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <textarea

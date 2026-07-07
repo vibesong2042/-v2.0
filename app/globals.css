@@ -121,6 +121,11 @@ button:disabled {
   font-size: 18px;
 }
 
+.heroStatus button {
+  margin-top: 12px;
+  width: 100%;
+}
+
 .stepNav {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -243,6 +248,29 @@ button:disabled {
   font-size: 17px;
 }
 
+.fileActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.fileActions button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.fileActions button:hover {
+  border-color: #b42318;
+  color: #b42318;
+}
+
 .required,
 .optional,
 .fileBadge {
@@ -264,6 +292,118 @@ button:disabled {
 .fileBadge {
   background: #eef4ff;
   color: #3538cd;
+}
+
+.candidateToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.candidateList {
+  display: grid;
+  gap: 14px;
+}
+
+.candidateCase {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 14px;
+}
+
+.candidateCaseHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.candidateCaseHeader label {
+  display: grid;
+  gap: 6px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.candidateSummaryPanel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: var(--shadow-soft);
+}
+
+.candidateSummaryHeader {
+  display: grid;
+  gap: 4px;
+}
+
+.candidateSummaryHeader h3,
+.candidateSummaryHeader p {
+  margin: 0;
+}
+
+.candidateSummaryHeader p {
+  color: #526070;
+  line-height: 1.5;
+}
+
+.candidateSummaryList {
+  display: grid;
+  gap: 8px;
+}
+
+.candidateSummaryList button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+  color: #344054;
+  text-align: left;
+}
+
+.candidateSummaryList button.selected {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+}
+
+.candidateSummaryList span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.candidateSummaryList strong {
+  color: #101828;
+}
+
+.candidateSummaryList em {
+  color: #0f766e;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.candidateSummaryList small {
+  color: #667085;
+  font-weight: 800;
 }
 
 textarea,
@@ -478,7 +618,86 @@ textarea {
 
 .blockingReasons {
   margin: 14px 0 0;
+  padding-left: 0;
   color: var(--danger);
+  list-style: none;
+}
+
+.blockingReasons li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  padding: 10px 12px;
+}
+
+.blockingReasons li + li {
+  margin-top: 8px;
+}
+
+.blockingReasons button {
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.analysisTargetSummary {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.analysisTargetHeader {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.analysisTargetHeader h3,
+.analysisTargetHeader p {
+  margin: 0;
+}
+
+.analysisTargetHeader h3 {
+  font-size: 17px;
+}
+
+.analysisTargetHeader p {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.analysisTargetGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.analysisTargetItem {
+  display: grid;
+  gap: 6px;
+  min-height: 72px;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.analysisTargetItem span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.analysisTargetItem strong {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .footerActions {
@@ -1090,7 +1309,10 @@ pre {
   .departmentReviewGrid,
   .departmentHeadView,
   .reviewTimeline,
-  .formGrid {
+  .formGrid,
+  .analysisTargetGrid,
+  .candidateCaseHeader,
+  .candidateSummaryList button {
     grid-template-columns: 1fr;
   }
 

@@ -75,11 +75,43 @@ describe("RoleFit Workbench UI content", () => {
     expect(source).toContain("<DepartmentReviewPanel");
   });
 
+  it("supports multiple candidate files and candidate comparison summaries", () => {
+    const source = pageSource();
+
+    expect(source).toContain("복수 후보자 파일 업로드");
+    expect(source).toContain("candidateCases.map");
+    expect(source).toContain("parseCandidateFiles");
+    expect(source).toContain("후보자 비교 요약");
+    expect(source).toContain("candidateReports.map");
+  });
+
+  it("starts without hidden sample text and exposes an explicit demo fill action", () => {
+    const source = pageSource();
+
+    expect(source).toContain("테스트 예시 채우기");
+    expect(source).toContain("fillDemoExample");
+    expect(source).not.toContain('text: "React 기반 채용 검토 도구 개발');
+    expect(source).not.toContain('text: "HR 업무 자동화와 지원자 경험 데이터 구조화');
+    expect(source).not.toContain('text: "React와 TypeScript로 사내 HR 도구를 개발했고');
+  });
+
+  it("shows analysis target summary and step navigation hints for blockers", () => {
+    const source = pageSource();
+
+    expect(source).toContain("분석 대상 요약");
+    expect(source).toContain("1단계로 이동");
+    expect(source).toContain("2단계로 이동");
+    expect(source).toContain("3단계에서 확인");
+    expect(source).toContain("분석 제외");
+  });
+
   it("shows document extraction review controls before analysis", () => {
     const source = documentInputCardSource();
 
     expect(source).toContain("내용 확인 완료");
     expect(source).toContain("경고를 확인하고 이 내용으로 진행");
+    expect(source).toContain("첨부 삭제");
+    expect(source).toContain("markDocumentCleared");
     expect(source).toContain("서버 메모리");
     expect(source).toContain("외부 API로 전송하지 않습니다");
     expect(source).toContain("requestIdRef");

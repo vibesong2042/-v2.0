@@ -5,6 +5,7 @@ import {
   canRunAnalysis,
   getStepState,
   isDocumentVerified,
+  markDocumentCleared,
   markDocumentTextChanged,
   markDocumentVerified
 } from "../lib/workflow";
@@ -80,6 +81,58 @@ describe("workflow validation", () => {
     expect(result.reasons).toContain("기존 입사자 CV/이력서 내용을 확인 완료하거나 비워 주세요.");
   });
 
+  it("does not block analysis for inactive optional documents even when they have unverified text", () => {
+    const result = canRunAnalysis({
+      requiredDocuments: [
+        { label: "직무기술서", document: document("직무 요건", true) },
+        { label: "지원자 CV/이력서", document: document("지원자 경력", true) }
+      ],
+      optionalDocuments: [
+        { label: "팀별 전략자료", document: document("미검증 전략자료", false), active: false }
+      ],
+      weights: DEFAULT_WEIGHT_SET
+    });
+
+    expect(result).toEqual({ ok: true, reasons: [] });
+  });
+
+  it("blocks analysis for active optional documents when they have unverified text", () => {
+    const result = canRunAnalysis({
+      requiredDocuments: [
+        { label: "직무기술서", document: document("직무 요건", true) },
+        { label: "지원자 CV/이력서", document: document("지원자 경력", true) }
+      ],
+      optionalDocuments: [
+        { label: "팀별 전략자료", document: document("미검증 전략자료", false), active: true }
+      ],
+      weights: DEFAULT_WEIGHT_SET
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reasons).toContain("팀별 전략자료 내용을 확인 완료하거나 비워 주세요.");
+  });
+
+  it("shows parsing wait reasons before verification reasons", () => {
+    const result = canRunAnalysis({
+      requiredDocuments: [
+        { label: "직무기술서", document: document("직무 요건", true) },
+        {
+          label: "지원자 CV/이력서",
+          document: {
+            text: "",
+            fileName: "candidate.pdf",
+            parseStatus: "parsing"
+          }
+        }
+      ],
+      optionalDocuments: [],
+      weights: DEFAULT_WEIGHT_SET
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reasons).toContain("지원자 CV/이력서 문서 추출이 완료될 때까지 기다려 주세요.");
+  });
+
   it("blocks analysis when enabled weights do not total 100", () => {
     const result = canRunAnalysis({
       requiredDocuments: [
@@ -149,6 +202,37 @@ describe("workflow validation", () => {
     expect(changed.extraction?.method).toBe("manual");
     expect(changed.extraction?.provider).toBeUndefined();
     expect(changed.extraction?.quality).toBeUndefined();
+  });
+
+  it("clears uploaded document text, file metadata, parsing state, and verification", () => {
+    const parsedDocument: DocumentInput = {
+      text: "파일에서 추출된 문서",
+      fileName: "candidate.pdf",
+      fileType: "application/pdf",
+      fileSize: 2048,
+      parseStatus: "parsed",
+      parseError: "",
+      extraction: {
+        method: "local",
+        warnings: ["원문 확인 필요"],
+        requiresReview: true,
+        verified: true,
+        provider: "local",
+        quality: {
+          level: "low",
+          signals: ["SHORT_TEXT"],
+          metrics: { textLength: 10 }
+        }
+      }
+    };
+
+    const cleared = markDocumentCleared(parsedDocument);
+
+    expect(cleared).toEqual({
+      text: "",
+      parseStatus: "idle"
+    });
+    expect(isDocumentVerified(cleared)).toBe(false);
   });
 
   it("marks previous steps as complete and the selected step as active", () => {

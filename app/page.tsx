@@ -1,11 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { DocumentInputCard } from "./components/DocumentInputCard";
 import { DepartmentReviewPanel } from "./components/DepartmentReviewPanel";
 import { ReportView } from "./components/ReportView";
 import { StepItem, StepNav } from "./components/StepNav";
 import { WeightPanel } from "./components/WeightPanel";
+import type { ExtractTextResult } from "../lib/documentExtraction";
+import type { CandidateCase, CandidateReportSummary } from "../lib/candidates";
+import {
+  candidateNameFromFile,
+  createCandidateCase,
+  hasCandidateContent,
+  removeCandidateCase,
+  summarizeCandidateReports
+} from "../lib/candidates";
 import {
   DEFAULT_WEIGHT_SET,
   DocumentInput,
@@ -29,10 +38,16 @@ const emptyDocument: DocumentInput = {
   parseStatus: "idle"
 };
 
+type CandidateAnalysisReport = CandidateReportSummary & {
+  report: StructuredMatchReport;
+};
+
 export default function Home() {
   const [activeStep, setActiveStep] = useState(0);
   const [copyLabel, setCopyLabel] = useState("복사");
   const [language, setLanguage] = useState<ReportLanguage>("ko");
+  const candidateBatchInputRef = useRef<HTMLInputElement>(null);
+  const batchRequestIdRef = useRef(0);
   const [weights, setWeights] = useState<ScoringWeightSet>({
     ...DEFAULT_WEIGHT_SET,
     items: DEFAULT_WEIGHT_SET.items.map((item) => ({
@@ -48,110 +63,327 @@ export default function Home() {
     }))
   });
   const [core, setCore] = useState({
-    jobDescription: {
-      ...emptyDocument,
-      text: "React 기반 채용 검토 도구 개발\nTypeScript 기반 운영 경험\n담당부서가 이해할 수 있는 근거 리포트 작성"
-    },
-    additionalMaterial: {
-      ...emptyDocument,
-      text: "HR 업무 자동화와 지원자 경험 데이터 구조화"
-    }
+    jobDescription: { ...emptyDocument },
+    additionalMaterial: { ...emptyDocument }
   });
-  const [candidate, setCandidate] = useState({
-    resume: {
-      ...emptyDocument,
-      text: "React와 TypeScript로 사내 HR 도구를 개발했고 검토 리포트 화면을 운영했습니다."
-    },
-    referenceResume: {
-      ...emptyDocument
-    }
+  const [candidateCases, setCandidateCases] = useState<CandidateCase[]>([
+    createCandidateCase(0, "candidate-1")
+  ]);
+  const [referenceResume, setReferenceResume] = useState<DocumentInput>({
+    ...emptyDocument
   });
   const [supporting, setSupporting] = useState({
-    teamStrategy: {
-      ...emptyDocument,
-      text: "HR 검토 리드타임 단축"
-    },
-    managerMbo: {
-      ...emptyDocument,
-      text: "채용 검토 자동화율 향상"
-    },
-    subjectiveOpinion: {
-      ...emptyDocument,
-      text: "부서 전달 자료의 설명 가능성"
-    }
+    teamStrategy: { ...emptyDocument },
+    managerMbo: { ...emptyDocument },
+    subjectiveOpinion: { ...emptyDocument }
   });
-  const [report, setReport] = useState<StructuredMatchReport | null>(null);
+  const [candidateReports, setCandidateReports] = useState<CandidateAnalysisReport[]>([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState("candidate-1");
+  const selectedReport =
+    candidateReports.find((candidateReport) => candidateReport.id === selectedCandidateId)?.report ??
+    candidateReports[0]?.report ??
+    null;
+  const activeCandidateCases = useMemo(
+    () => candidateCases.filter(hasCandidateContent),
+    [candidateCases]
+  );
+  const teamStrategyActive = isWeightedCriterionActive(weights, "teamStrategy");
+  const managerMboActive = isWeightedCriterionActive(weights, "mbo");
+  const subjectiveOpinionActive = isWeightedCriterionActive(weights, "custom");
 
-  const analysisState = useMemo(
-    () =>
-      canRunAnalysis({
+  const analysisState = useMemo(() => {
+    const documentState = canRunAnalysis({
         requiredDocuments: [
           { label: "직무기술서", document: core.jobDescription },
-          { label: "지원자 CV/이력서", document: candidate.resume }
+        ...activeCandidateCases.map((candidateCase) => ({
+            label: `${candidateCase.name || "지원자"} CV/이력서`,
+            document: candidateCase.resume
+          }))
         ],
         optionalDocuments: [
           { label: "추가 설명자료", document: core.additionalMaterial },
-          { label: "기존 입사자 CV/이력서", document: candidate.referenceResume },
-          { label: "팀별 전략자료", document: supporting.teamStrategy },
-          { label: "보직장 MBO", document: supporting.managerMbo },
-          { label: "기타 주관식 의견", document: supporting.subjectiveOpinion }
+          { label: "기존 입사자 CV/이력서", document: referenceResume },
+        { label: "팀별 전략자료", document: supporting.teamStrategy, active: teamStrategyActive },
+        { label: "보직장 MBO", document: supporting.managerMbo, active: managerMboActive },
+        {
+          label: "기타 주관식 의견",
+          document: supporting.subjectiveOpinion,
+          active: subjectiveOpinionActive
+        }
         ],
         weights
-      }),
-    [candidate, core, supporting, weights]
-  );
+    });
+    const reasons =
+      activeCandidateCases.length === 0
+        ? ["지원자 CV/이력서를 1명 이상 등록하세요.", ...documentState.reasons]
+        : documentState.reasons;
+
+    return {
+      ok: reasons.length === 0,
+      reasons
+    };
+  }, [
+    activeCandidateCases,
+    core,
+    managerMboActive,
+    referenceResume,
+    subjectiveOpinionActive,
+    supporting,
+    teamStrategyActive,
+    weights
+  ]);
+  const analysisSummaryItems = [
+    buildDocumentSummary("직무기술서", core.jobDescription, true),
+    buildDocumentSummary("추가 설명자료", core.additionalMaterial, true, "미사용"),
+    buildCandidateSummary(activeCandidateCases),
+    buildDocumentSummary("기존 입사자 CV/이력서", referenceResume, true, "미사용"),
+    buildDocumentSummary("팀별 전략자료", supporting.teamStrategy, teamStrategyActive, "분석 제외"),
+    buildDocumentSummary("보직장 MBO", supporting.managerMbo, managerMboActive, "분석 제외"),
+    buildDocumentSummary("기타 주관식 의견", supporting.subjectiveOpinion, subjectiveOpinionActive, "분석 제외")
+  ];
 
   function runAnalysis() {
     if (!analysisState.ok) {
       return;
     }
 
-    const nextReport = analyzeStructuredMatch({
-      coreCriteria: {
-        jobDescription: core.jobDescription.text,
-        additionalMaterial: core.additionalMaterial.text
-      },
-      candidateInfo: {
-        candidateResume: candidate.resume.text,
-        referenceEmployeeResume: candidate.referenceResume.text
-      },
-      supportingCriteria: {
-        teamStrategy: supporting.teamStrategy.text,
-        managerMbo: supporting.managerMbo.text,
-        subjectiveOpinion: supporting.subjectiveOpinion.text
-      },
-      weights,
-      language
-    });
-    setReport(nextReport);
+    const nextReports = summarizeCandidateReports(
+      activeCandidateCases.map((candidateCase) => {
+        const report = analyzeStructuredMatch({
+          coreCriteria: {
+            jobDescription: core.jobDescription.text,
+            additionalMaterial: core.additionalMaterial.text
+          },
+          candidateInfo: {
+            candidateResume: candidateCase.resume.text,
+            referenceEmployeeResume: referenceResume.text
+          },
+          supportingCriteria: {
+            teamStrategy: teamStrategyActive ? supporting.teamStrategy.text : "",
+            managerMbo: managerMboActive ? supporting.managerMbo.text : "",
+            subjectiveOpinion: subjectiveOpinionActive ? supporting.subjectiveOpinion.text : ""
+          },
+          weights,
+          language
+        });
+
+        return {
+          id: candidateCase.id,
+          name: candidateCase.name,
+          score: report.overallMatch.score,
+          confidence: report.confidence.level,
+          report
+        };
+      })
+    );
+
+    setCandidateReports(nextReports);
+    setSelectedCandidateId(nextReports[0]?.id ?? activeCandidateCases[0]?.id ?? "candidate-1");
     setActiveStep(3);
     setCopyLabel("복사");
   }
 
   async function copyReport() {
-    if (!report) {
+    if (!selectedReport) {
       return;
     }
 
-    await navigator.clipboard.writeText(generateStructuredReportText(report));
+    await navigator.clipboard.writeText(generateStructuredReportText(selectedReport));
     setCopyLabel("복사됨");
     window.setTimeout(() => setCopyLabel("복사"), 1400);
   }
 
   function downloadReport() {
-    if (!report) {
+    if (!selectedReport) {
       return;
     }
 
-    const blob = new Blob([generateStructuredReportText(report)], {
+    const selectedCandidate = candidateReports.find(
+      (candidateReport) => candidateReport.id === selectedCandidateId
+    );
+    const blob = new Blob([generateStructuredReportText(selectedReport)], {
       type: "text/plain;charset=utf-8"
     });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "rolefit-report.txt";
+    anchor.download = `rolefit-report-${fileSafeName(selectedCandidate?.name ?? "candidate")}.txt`;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  function updateCandidateResume(candidateId: string, resume: DocumentInput) {
+    setCandidateCases((current) =>
+      current.map((candidateCase) =>
+        candidateCase.id === candidateId ? { ...candidateCase, resume } : candidateCase
+      )
+    );
+  }
+
+  function updateCandidateName(candidateId: string, name: string) {
+    setCandidateCases((current) =>
+      current.map((candidateCase) =>
+        candidateCase.id === candidateId ? { ...candidateCase, name } : candidateCase
+      )
+    );
+  }
+
+  function addCandidateCase() {
+    setCandidateCases((current) => [
+      ...current,
+      createCandidateCase(current.length, `candidate-${Date.now()}`)
+    ]);
+  }
+
+  function removeCandidate(candidateId: string) {
+    setCandidateCases((current) => removeCandidateCase(current, candidateId));
+  }
+
+  function fillDemoExample() {
+    setCore({
+      jobDescription: demoDocument(
+        [
+          "React 기반 채용 검토 도구 개발",
+          "TypeScript 기반 운영 경험",
+          "담당부서가 이해할 수 있는 근거 리포트 작성"
+        ].join("\n")
+      ),
+      additionalMaterial: demoDocument("HR 업무 자동화와 지원자 경험 데이터 구조화")
+    });
+    setCandidateCases([
+      {
+        ...createCandidateCase(0, "candidate-1"),
+        name: "테스트 후보자 1",
+        resume: demoDocument(
+          "React와 TypeScript로 사내 HR 도구를 개발했고 검토 리포트 화면을 운영했습니다."
+        )
+      }
+    ]);
+    setReferenceResume({ ...emptyDocument });
+    setSupporting({
+      teamStrategy: demoDocument("HR 검토 리드타임 단축"),
+      managerMbo: demoDocument("채용 검토 자동화율 향상"),
+      subjectiveOpinion: demoDocument("부서 전달 자료의 설명 가능성")
+    });
+    setCandidateReports([]);
+    setSelectedCandidateId("candidate-1");
+    setCopyLabel("복사");
+  }
+
+  async function parseCandidateFiles(files: File[]) {
+    if (files.length === 0) {
+      return;
+    }
+
+    const requestId = batchRequestIdRef.current + 1;
+    batchRequestIdRef.current = requestId;
+    const timestamp = Date.now();
+    const newCandidates = files.map((file, index) => ({
+      id: `candidate-${timestamp}-${index}`,
+      name: candidateNameFromFile(file.name, candidateCases.length + index),
+      resume: {
+        ...emptyDocument,
+        fileName: file.name,
+        fileType: file.type || "application/octet-stream",
+        fileSize: file.size,
+        parseStatus: "parsing" as const,
+        parseError: ""
+      }
+    }));
+
+    setCandidateCases((current) => {
+      const hasOnlyEmptyCandidate =
+        current.length === 1 && !current[0].resume.text.trim() && !current[0].resume.fileName;
+      return hasOnlyEmptyCandidate ? newCandidates : [...current, ...newCandidates];
+    });
+
+    await Promise.all(
+      files.map(async (file, index) => {
+        const candidateId = newCandidates[index].id;
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const response = await fetch("/api/extract-text", {
+            method: "POST",
+            body: formData
+          });
+          const result = (await response.json()) as ExtractTextResult;
+
+          if (requestId !== batchRequestIdRef.current) {
+            return;
+          }
+
+          setCandidateCases((current) =>
+            current.map((candidateCase) => {
+              if (candidateCase.id !== candidateId) {
+                return candidateCase;
+              }
+
+              if (!result.ok) {
+                return {
+                  ...candidateCase,
+                  resume: {
+                    ...candidateCase.resume,
+                    fileName: result.fileName || file.name,
+                    fileType: result.fileType || file.type,
+                    fileSize: file.size,
+                    parseStatus: "failed",
+                    parseError: result.error,
+                    extraction: undefined
+                  }
+                };
+              }
+
+              return {
+                ...candidateCase,
+                resume: {
+                  ...candidateCase.resume,
+                  text: result.plainText,
+                  fileName: result.fileName,
+                  fileType: result.fileType,
+                  fileSize: file.size,
+                  parseStatus: "parsed",
+                  parseError: "",
+                  extraction: {
+                    method: "local",
+                    warnings: result.warnings,
+                    requiresReview: result.requiresReview,
+                    confidence: result.confidence,
+                    provider: result.provider,
+                    quality: result.quality,
+                    verified: false
+                  }
+                }
+              };
+            })
+          );
+        } catch {
+          if (requestId !== batchRequestIdRef.current) {
+            return;
+          }
+
+          setCandidateCases((current) =>
+            current.map((candidateCase) =>
+              candidateCase.id === candidateId
+                ? {
+                    ...candidateCase,
+                    resume: {
+                      ...candidateCase.resume,
+                      fileName: file.name,
+                      fileType: file.type || "application/octet-stream",
+                      fileSize: file.size,
+                      parseStatus: "failed",
+                      parseError: "문서 텍스트 추출에 실패했습니다. 수동 입력으로 보정해 주세요.",
+                      extraction: undefined
+                    }
+                  }
+                : candidateCase
+            )
+          );
+        }
+      })
+    );
   }
 
   return (
@@ -168,6 +400,9 @@ export default function Home() {
         <div className="heroStatus">
           <span>처리 방식</span>
           <strong>파일 파싱 + Mock 분석</strong>
+          <button type="button" onClick={fillDemoExample}>
+            테스트 예시 채우기
+          </button>
         </div>
       </section>
 
@@ -208,23 +443,61 @@ export default function Home() {
           <div className="sectionHeader">
             <span>2단계</span>
             <h2>지원자 정보 등록</h2>
-            <p>지원자 CV/이력서는 필수이며, 기존 입사자 CV는 비교용 선택 자료입니다.</p>
+            <p>한 포지션에 여러 후보자를 등록하고, 후보자별 CV/이력서를 확인 완료합니다.</p>
           </div>
-          <div className="cardGrid">
-            <DocumentInputCard
-              helperText="지원자 경력, 프로젝트, 기술 역량이 포함된 CV/이력서를 등록하세요."
-              label="지원자 CV/이력서"
-              onChange={(value) => setCandidate((current) => ({ ...current, resume: value }))}
-              required
-              value={candidate.resume}
+          <div className="candidateToolbar">
+            <input
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md"
+              hidden
+              multiple
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = "";
+                void parseCandidateFiles(files);
+              }}
+              ref={candidateBatchInputRef}
+              type="file"
             />
+            <button type="button" onClick={() => candidateBatchInputRef.current?.click()}>
+              복수 후보자 파일 업로드
+            </button>
+            <button type="button" onClick={addCandidateCase}>
+              후보자 직접 추가
+            </button>
+          </div>
+
+          <div className="candidateList">
+            {candidateCases.map((candidateCase, index) => (
+              <section className="candidateCase" key={candidateCase.id}>
+                <div className="candidateCaseHeader">
+                  <label>
+                    후보자 표시명
+                    <input
+                      onChange={(event) => updateCandidateName(candidateCase.id, event.target.value)}
+                      value={candidateCase.name}
+                    />
+                  </label>
+                  <button type="button" onClick={() => removeCandidate(candidateCase.id)}>
+                    후보자 제거
+                  </button>
+                </div>
+                <DocumentInputCard
+                  helperText="지원자 경력, 프로젝트, 기술 역량이 포함된 CV/이력서를 등록하세요."
+                  label={`${candidateCase.name || `지원자 ${index + 1}`} CV/이력서`}
+                  onChange={(value) => updateCandidateResume(candidateCase.id, value)}
+                  required
+                  value={candidateCase.resume}
+                />
+              </section>
+            ))}
+          </div>
+
+          <div className="cardGrid">
             <DocumentInputCard
               helperText="동일/유사 포스트 기존 입사자의 CV가 있으면 유사도 계산에 사용합니다."
               label="기존 입사자 CV/이력서"
-              onChange={(value) =>
-                setCandidate((current) => ({ ...current, referenceResume: value }))
-              }
-              value={candidate.referenceResume}
+              onChange={setReferenceResume}
+              value={referenceResume}
             />
           </div>
           <div className="footerActions">
@@ -265,11 +538,38 @@ export default function Home() {
             ) : null}
           </div>
 
+          <section className="analysisTargetSummary" aria-label="분석 대상 요약">
+            <div className="analysisTargetHeader">
+              <h3>분석 대상 요약</h3>
+              <p>분석에 포함되는 문서와 제외되는 문서를 확인합니다.</p>
+            </div>
+            <div className="analysisTargetGrid">
+              {analysisSummaryItems.map((item) => (
+                <div className="analysisTargetItem" key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.status}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
           {!analysisState.ok ? (
             <ul className="blockingReasons">
-              {analysisState.reasons.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
+              {analysisState.reasons.map((reason) => {
+                const targetStep = stepForBlockingReason(reason);
+                return (
+                  <li key={reason}>
+                    <span>{reason}</span>
+                    <button onClick={() => setActiveStep(targetStep)} type="button">
+                      {targetStep === 0
+                        ? "1단계로 이동"
+                        : targetStep === 1
+                          ? "2단계로 이동"
+                          : "3단계에서 확인"}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
 
@@ -314,13 +614,39 @@ export default function Home() {
             <h2>분석결과 리포트</h2>
             <p>부서 검토에 필요한 점수, 근거, 확인 질문을 문서 형태로 확인합니다.</p>
           </div>
+          {candidateReports.length > 0 ? (
+            <section className="candidateSummaryPanel" aria-label="후보자 비교 요약">
+              <div className="candidateSummaryHeader">
+                <h3>후보자 비교 요약</h3>
+                <p>점수 순으로 정렬되며, 후보자를 선택하면 아래 리포트가 변경됩니다.</p>
+              </div>
+              <div className="candidateSummaryList">
+                {candidateReports.map((candidateReport, index) => (
+                  <button
+                    className={candidateReport.id === selectedCandidateId ? "selected" : ""}
+                    key={candidateReport.id}
+                    onClick={() => {
+                      setSelectedCandidateId(candidateReport.id);
+                      setCopyLabel("복사");
+                    }}
+                    type="button"
+                  >
+                    <span>{index + 1}</span>
+                    <strong>{candidateReport.name}</strong>
+                    <em>{candidateReport.score}%</em>
+                    <small>{candidateReport.confidence}</small>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
           <ReportView
             copyLabel={copyLabel}
             onCopy={copyReport}
             onDownload={downloadReport}
-            report={report}
+            report={selectedReport}
           />
-          <DepartmentReviewPanel report={report} />
+          <DepartmentReviewPanel report={selectedReport} />
           <div className="footerActions">
             <button onClick={() => setActiveStep(2)} type="button">
               보조지표 수정
@@ -330,4 +656,97 @@ export default function Home() {
       ) : null}
     </main>
   );
+}
+
+function fileSafeName(value: string) {
+  return value.replace(/[\\/:*?"<>|]+/g, "_").trim() || "candidate";
+}
+
+function isWeightedCriterionActive(
+  weights: ScoringWeightSet,
+  code: "teamStrategy" | "mbo" | "custom"
+) {
+  const item = weights.items.find((weight) => weight.code === code);
+  return Boolean(item?.enabled && Number(item.weight) > 0);
+}
+
+function buildDocumentSummary(
+  label: string,
+  document: DocumentInput,
+  active: boolean,
+  emptyStatus = "등록 필요"
+) {
+  if (!active) {
+    return { label, status: "분석 제외" };
+  }
+
+  if (document.parseStatus === "parsing") {
+    return { label, status: "추출 중" };
+  }
+
+  if (!document.text.trim()) {
+    return { label, status: emptyStatus };
+  }
+
+  return {
+    label,
+    status: document.extraction?.verified === true ? "확인 완료" : "확인 필요"
+  };
+}
+
+function buildCandidateSummary(candidateCases: CandidateCase[]) {
+  if (candidateCases.length === 0) {
+    return { label: "후보자", status: "등록 필요" };
+  }
+
+  const parsingCount = candidateCases.filter(
+    (candidateCase) => candidateCase.resume.parseStatus === "parsing"
+  ).length;
+  const unverifiedCount = candidateCases.filter(
+    (candidateCase) => candidateCase.resume.extraction?.verified !== true
+  ).length;
+
+  if (parsingCount > 0) {
+    return {
+      label: "후보자",
+      status: `${candidateCases.length}명 분석 대상, ${parsingCount}명 추출 중`
+    };
+  }
+
+  if (unverifiedCount > 0) {
+    return {
+      label: "후보자",
+      status: `${candidateCases.length}명 분석 대상, ${unverifiedCount}명 확인 필요`
+    };
+  }
+
+  return {
+    label: "후보자",
+    status: `${candidateCases.length}명 분석 대상, 확인 완료`
+  };
+}
+
+function stepForBlockingReason(reason: string) {
+  if (reason.includes("직무기술서") || reason.includes("추가 설명자료")) {
+    return 0;
+  }
+
+  if (reason.includes("지원자") || reason.includes("기존 입사자")) {
+    return 1;
+  }
+
+  return 2;
+}
+
+function demoDocument(text: string): DocumentInput {
+  return {
+    ...emptyDocument,
+    text,
+    extraction: {
+      method: "manual",
+      warnings: [],
+      requiresReview: false,
+      verified: false
+    }
+  };
 }
