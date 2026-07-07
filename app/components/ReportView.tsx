@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, RefObject } from "react";
 import { StructuredMatchReport } from "../../lib/matching";
 import {
   CoreMatchStatus,
@@ -15,16 +15,28 @@ export function ReportView({
   report,
   onCopy,
   onDownload,
+  onPdfDownload,
+  reportContentRef,
   copyLabel
 }: {
   report: StructuredMatchReport | null;
   onCopy: () => void;
   onDownload: () => void;
+  onPdfDownload: () => void;
+  reportContentRef: RefObject<HTMLElement | null>;
   copyLabel: string;
 }) {
   if (!report) {
     return (
       <section className="emptyReport">
+        <div className="reportActions">
+          <button disabled type="button">
+            PDF 다운로드
+          </button>
+          <button disabled type="button">
+            TXT 다운로드
+          </button>
+        </div>
         <h2>분석결과 리포트</h2>
         <p>3단계에서 분석을 실행하면 담당부서 검토용 리포트가 생성됩니다.</p>
       </section>
@@ -36,17 +48,21 @@ export function ReportView({
   const sortedCoreMatches = sortCoreMatchCards(report.criterionAssessments);
 
   return (
-    <section className="reportSheet" aria-label="RoleFit Report">
+    <section className="reportViewShell" aria-label="RoleFit Report">
       <div className="reportActions">
         <button onClick={onCopy} type="button">
           {copyLabel}
         </button>
+        <button onClick={onPdfDownload} type="button">
+          PDF 다운로드
+        </button>
         <button onClick={onDownload} type="button">
-          다운로드
+          TXT 다운로드
         </button>
       </div>
 
-      <header className="reportTitleBar">
+      <section className="reportSheet" ref={reportContentRef} aria-label="RoleFit Report 문서">
+        <header className="reportTitleBar">
         <div>
           <p>RoleFit Report</p>
           <h2>분석결과 리포트</h2>
@@ -204,6 +220,7 @@ export function ReportView({
           )}
         </div>
       </ReportSection>
+      </section>
     </section>
   );
 }

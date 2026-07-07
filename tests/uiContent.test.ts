@@ -49,6 +49,21 @@ describe("RoleFit Workbench UI content", () => {
     expect(source).not.toContain("<pre>{text}</pre>");
   });
 
+  it("supports PDF report download while keeping text download", () => {
+    const page = pageSource();
+    const report = reportSource();
+
+    expect(report).toContain("PDF 다운로드");
+    expect(report).toContain("TXT 다운로드");
+    expect(report).toContain("onPdfDownload");
+    expect(page).toContain("downloadPdfReport");
+    expect(page).toContain("html2canvas");
+    expect(page).toContain("jspdf");
+    expect(page).toContain("rolefit-report-${fileSafeName");
+    expect(page).toContain(".pdf");
+    expect(page).toContain(".txt");
+  });
+
   it("renders core indicators as visual cards instead of the old core table", () => {
     const source = reportSource();
 

@@ -1,5 +1,7 @@
 "use client";
 
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { useMemo, useRef, useState } from "react";
 import { DocumentInputCard } from "./components/DocumentInputCard";
 import { DepartmentReviewPanel } from "./components/DepartmentReviewPanel";
@@ -47,6 +49,7 @@ export default function Home() {
   const [copyLabel, setCopyLabel] = useState("복사");
   const [language, setLanguage] = useState<ReportLanguage>("ko");
   const candidateBatchInputRef = useRef<HTMLInputElement>(null);
+  const reportPdfRef = useRef<HTMLElement>(null);
   const batchRequestIdRef = useRef(0);
   const [weights, setWeights] = useState<ScoringWeightSet>({
     ...DEFAULT_WEIGHT_SET,
@@ -210,6 +213,45 @@ export default function Home() {
     anchor.download = `rolefit-report-${fileSafeName(selectedCandidate?.name ?? "candidate")}.txt`;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function downloadPdfReport() {
+    if (!selectedReport || !reportPdfRef.current) {
+      return;
+    }
+
+    const selectedCandidate = candidateReports.find(
+      (candidateReport) => candidateReport.id === selectedCandidateId
+    );
+    const canvas = await html2canvas(reportPdfRef.current, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true
+    });
+    const imageData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({
+      format: "a4",
+      orientation: "portrait",
+      unit: "pt"
+    });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imageWidth = pageWidth;
+    const imageHeight = (canvas.height * imageWidth) / canvas.width;
+    let yPosition = 0;
+    let remainingHeight = imageHeight;
+
+    pdf.addImage(imageData, "PNG", 0, yPosition, imageWidth, imageHeight);
+    remainingHeight -= pageHeight;
+
+    while (remainingHeight > 0) {
+      yPosition -= pageHeight;
+      pdf.addPage();
+      pdf.addImage(imageData, "PNG", 0, yPosition, imageWidth, imageHeight);
+      remainingHeight -= pageHeight;
+    }
+
+    pdf.save(`rolefit-report-${fileSafeName(selectedCandidate?.name ?? "candidate")}.pdf`);
   }
 
   function updateCandidateResume(candidateId: string, resume: DocumentInput) {
@@ -644,7 +686,9 @@ export default function Home() {
             copyLabel={copyLabel}
             onCopy={copyReport}
             onDownload={downloadReport}
+            onPdfDownload={downloadPdfReport}
             report={selectedReport}
+            reportContentRef={reportPdfRef}
           />
           <DepartmentReviewPanel report={selectedReport} />
           <div className="footerActions">
