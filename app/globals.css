@@ -1212,6 +1212,16 @@ pre {
   margin-bottom: 18px;
 }
 
+.analysisError {
+  margin: 14px 0 0;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: var(--danger);
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
 .supportingInputs {
   margin-top: 18px;
 }

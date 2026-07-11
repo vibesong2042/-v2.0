@@ -132,12 +132,24 @@ describe("RoleFit Workbench UI content", () => {
     const page = pageSource();
     const report = reportSource();
 
-    expect(page).toContain("analyzeStructuredMatchWithAdapter");
-    expect(page).toContain("MockAiMatchingAdapter");
+    expect(page).toContain('fetch("/api/analyze-match"');
     expect(report).toContain("report.aiShadowReview.status");
     expect(report).toContain("Rule 분석");
     expect(report).toContain("Mock AI shadow 완료");
     expect(report).toContain("AI 오류로 Rule 사용");
+  });
+
+  it("runs candidate analysis through the protected server API", () => {
+    const source = pageSource();
+
+    expect(source).toContain('fetch("/api/analyze-match"');
+    expect(source).toContain("candidateInfo: {");
+    expect(source).toContain("candidateId: candidateCase.id");
+    expect(source).toContain('"x-rolefit-mock-role": "Recruiter"');
+    expect(source).toContain('"x-rolefit-mock-name": "Local Recruiter"');
+    expect(source).not.toContain('"x-rolefit-mock-name": "로컬 채용담당자"');
+    expect(source).not.toContain("analyzeStructuredMatchWithAdapter({");
+    expect(source).not.toContain("new MockAiMatchingAdapter");
   });
 
   it("renders candidate comparison as aligned operational rows", () => {

@@ -23,10 +23,9 @@ import {
   ReportLanguage,
   ScoringWeightSet,
   StructuredMatchReport,
-  analyzeStructuredMatchWithAdapter,
   generateStructuredReportText
 } from "../lib/matching";
-import { MockAiMatchingAdapter } from "../lib/matching/aiAdapter";
+import type { AnalyzeMatchResponse, VerifiedTextInput } from "../lib/server/analysisContract";
 import { canRunAnalysis } from "../lib/workflow";
 
 const steps: StepItem[] = [
@@ -40,8 +39,6 @@ const emptyDocument: DocumentInput = {
   text: "",
   parseStatus: "idle"
 };
-
-const mockAiMatchingAdapter = new MockAiMatchingAdapter();
 
 type CandidateAnalysisReport = CandidateReportSummary & {
   report: StructuredMatchReport;
@@ -85,6 +82,7 @@ export default function Home() {
   });
   const [candidateReports, setCandidateReports] = useState<CandidateAnalysisReport[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState("candidate-1");
   const selectedReport =
     candidateReports.find((candidateReport) => candidateReport.id === selectedCandidateId)?.report ??
@@ -155,29 +153,52 @@ export default function Home() {
     }
 
     setIsAnalyzing(true);
+    setAnalysisError("");
 
     try {
       const reports: CandidateAnalysisReport[] = [];
+      const runId = globalThis.crypto.randomUUID();
 
       for (const candidateCase of activeCandidateCases) {
-        const report = await analyzeStructuredMatchWithAdapter({
+        const response = await fetch("/api/analyze-match", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-rolefit-mock-user": "local-recruiter",
+            "x-rolefit-mock-name": "Local Recruiter",
+            "x-rolefit-mock-role": "Recruiter"
+          },
+          body: JSON.stringify({
+            requestId: `${runId}:${candidateCase.id}`,
+            idempotencyKey: `${runId}:${candidateCase.id}`,
           coreCriteria: {
-            jobDescription: core.jobDescription.text,
-            additionalMaterial: core.additionalMaterial.text
+              jobDescription: verifiedText(core.jobDescription),
+              additionalMaterial: verifiedText(core.additionalMaterial)
           },
           candidateInfo: {
-            candidateResume: candidateCase.resume.text,
-            referenceEmployeeResume: referenceResume.text
+              candidateId: candidateCase.id,
+              candidateResume: verifiedText(candidateCase.resume),
+              referenceEmployeeResume: verifiedText(referenceResume)
           },
           supportingCriteria: {
-            teamStrategy: teamStrategyActive ? supporting.teamStrategy.text : "",
-            managerMbo: managerMboActive ? supporting.managerMbo.text : "",
-            subjectiveOpinion: subjectiveOpinionActive ? supporting.subjectiveOpinion.text : ""
+              teamStrategy: verifiedText(supporting.teamStrategy, teamStrategyActive),
+              managerMbo: verifiedText(supporting.managerMbo, managerMboActive),
+              subjectiveOpinion: verifiedText(
+                supporting.subjectiveOpinion,
+                subjectiveOpinionActive
+              )
           },
           weights,
-          language,
-          adapter: mockAiMatchingAdapter
+            language
+          })
         });
+        const result = (await response.json()) as AnalyzeMatchResponse;
+
+        if (!response.ok || !result.ok) {
+          throw new Error(result.ok ? "분석 요청에 실패했습니다." : result.error.message);
+        }
+
+        const report = result.report;
 
         reports.push({
           id: candidateCase.id,
@@ -194,6 +215,10 @@ export default function Home() {
       setSelectedCandidateId(nextReports[0]?.id ?? activeCandidateCases[0]?.id ?? "candidate-1");
       setActiveStep(3);
       setCopyLabel("복사");
+    } catch (error) {
+      setAnalysisError(
+        error instanceof Error ? error.message : "분석 처리 중 오류가 발생했습니다."
+      );
     } finally {
       setIsAnalyzing(false);
     }
@@ -628,6 +653,12 @@ export default function Home() {
             </ul>
           ) : null}
 
+          {analysisError ? (
+            <p className="analysisError" role="alert">
+              {analysisError}
+            </p>
+          ) : null}
+
           <div className="footerActions analysisActions">
             <button onClick={() => setActiveStep(1)} type="button">
               이전
@@ -830,5 +861,16 @@ function demoDocument(text: string): DocumentInput {
       requiresReview: false,
       verified: false
     }
+  };
+}
+
+function verifiedText(document: DocumentInput, active = true): VerifiedTextInput {
+  if (!active) {
+    return { text: "", verified: true };
+  }
+
+  return {
+    text: document.text,
+    verified: document.text.trim().length === 0 || document.extraction?.verified === true
   };
 }
