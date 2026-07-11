@@ -8,10 +8,37 @@ const extractTextRouteSource = () => readFileSync("app/api/extract-text/route.ts
 const documentExtractionSource = () => readFileSync("lib/documentExtraction.ts", "utf8");
 const documentInputCardSource = () =>
   readFileSync("app/components/DocumentInputCard.tsx", "utf8");
+const stepNavSource = () => readFileSync("app/components/StepNav.tsx", "utf8");
+const globalStylesSource = () => readFileSync("app/globals.css", "utf8");
 const departmentReviewPanelSource = () =>
   readFileSync("app/components/DepartmentReviewPanel.tsx", "utf8");
 
 describe("RoleFit Workbench UI content", () => {
+  it("uses a compact operations header instead of a marketing hero", () => {
+    const source = pageSource();
+
+    expect(source).toContain('className="appHeader"');
+    expect(source).toContain("Local");
+    expect(source).toContain("Mock AI Shadow");
+    expect(source).not.toContain('className="appHero"');
+  });
+
+  it("exposes the current workflow step to assistive technology", () => {
+    const source = stepNavSource();
+
+    expect(source).toContain('aria-current={state === "active" ? "step" : undefined}');
+    expect(source).toContain('aria-label="진행 단계"');
+  });
+
+  it("uses compact document upload controls and explicit mobile breakpoints", () => {
+    const inputCard = documentInputCardSource();
+    const styles = globalStylesSource();
+
+    expect(inputCard).toContain('className="compactUploadRow"');
+    expect(styles).toContain("@media (max-width: 768px)");
+    expect(styles).toContain("@media (max-width: 480px)");
+  });
+
   it("uses the product name and removes the old headline", () => {
     const source = pageSource();
 

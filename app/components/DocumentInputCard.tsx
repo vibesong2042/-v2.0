@@ -185,12 +185,16 @@ export function DocumentInputCard({
           ref={inputRef}
           type="file"
         />
-        <strong>파일을 끌어오거나 선택하세요</strong>
-        <span>PDF, Word, Excel, TXT 파일을 지원합니다.</span>
-        <small>현재 파일은 서버 메모리에서만 텍스트 추출하며 저장하지 않고 외부 API로 전송하지 않습니다.</small>
-        <button type="button" onClick={() => inputRef.current?.click()}>
-          파일 선택
-        </button>
+        <div className="compactUploadRow">
+          <div>
+            <strong>파일을 끌어오거나 선택하세요</strong>
+            <span>PDF, Word, Excel, TXT</span>
+          </div>
+          <button type="button" onClick={() => inputRef.current?.click()}>
+            파일 선택
+          </button>
+        </div>
+        <small>서버 메모리에서만 추출하며 저장하거나 외부 API로 전송하지 않습니다.</small>
       </div>
 
       {value.parseStatus === "parsing" ? <p className="parseInfo">문서 텍스트를 추출하고 있습니다.</p> : null}

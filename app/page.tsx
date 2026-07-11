@@ -443,23 +443,19 @@ export default function Home() {
 
   return (
     <main className="shell">
-      <section className="appHero">
-        <div>
-          <p className="eyebrow">JD/CV Matching Console</p>
+      <header className="appHeader">
+        <div className="productIdentity">
           <h1>RoleFit Workbench</h1>
-          <p>
-            직무 기준 문서와 지원자 자료를 구조화해 담당부서 검토용 매칭 리포트를 생성하는
-            채용 검토 워크벤치입니다.
-          </p>
+          <span>JD/CV Matching Console</span>
         </div>
-        <div className="heroStatus">
-          <span>처리 방식</span>
-          <strong>파일 파싱 + Mock 분석</strong>
+        <div className="workspaceStatus" aria-label="실행 환경">
+          <span className="environmentBadge">Local</span>
+          <span className="environmentBadge muted">Mock AI Shadow</span>
           <button type="button" onClick={fillDemoExample}>
             테스트 예시 채우기
           </button>
         </div>
-      </section>
+      </header>
 
       <StepNav activeStep={activeStep} onSelect={setActiveStep} steps={steps} />
 
@@ -574,9 +570,11 @@ export default function Home() {
             <p>분석 조건을 먼저 확인한 뒤, 필요하면 팀 전략과 관리자 의견을 보강합니다.</p>
           </div>
 
-          <WeightPanel onChange={setWeights} weights={weights} />
+          <div className="analysisSetupGrid">
+            <div className="analysisConfigColumn">
+              <WeightPanel onChange={setWeights} weights={weights} />
 
-          <div className="languagePanel">
+              <div className="languagePanel">
             <label>
               리포트 언어
               <select
@@ -591,22 +589,24 @@ export default function Home() {
             {language !== "ko" ? (
               <p className="parseInfo">다국어 리포트는 확장 예정입니다. 현재 결과는 한국어로 제공됩니다.</p>
             ) : null}
-          </div>
+              </div>
+            </div>
 
-          <section className="analysisTargetSummary" aria-label="분석 대상 요약">
-            <div className="analysisTargetHeader">
-              <h3>분석 대상 요약</h3>
-              <p>분석에 포함되는 문서와 제외되는 문서를 확인합니다.</p>
-            </div>
-            <div className="analysisTargetGrid">
-              {analysisSummaryItems.map((item) => (
-                <div className="analysisTargetItem" key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.status}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
+            <section className="analysisTargetSummary" aria-label="분석 대상 요약">
+              <div className="analysisTargetHeader">
+                <h3>분석 대상 요약</h3>
+                <p>분석에 포함되는 문서와 제외되는 문서를 확인합니다.</p>
+              </div>
+              <div className="analysisTargetGrid">
+                {analysisSummaryItems.map((item) => (
+                  <div className="analysisTargetItem" key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.status}</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
 
           {!analysisState.ok ? (
             <ul className="blockingReasons">

@@ -23,6 +23,7 @@ export function StepNav({
 
         return (
           <button
+            aria-current={state === "active" ? "step" : undefined}
             className={`stepButton ${state}`}
             key={step.title}
             onClick={() => onSelect(index)}
