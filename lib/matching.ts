@@ -1,6 +1,13 @@
-import type { AiMatchingAdapter, AiMatchingProvider } from "./matching/aiAdapter";
+import type {
+  AiEvidenceSuggestion,
+  AiFallbackReasonCode,
+  AiMatchingAdapter,
+  AiMatchingProvider,
+  AiRubricSuggestion
+} from "./matching/aiAdapter";
 import {
   sanitizeAiMatchingSuggestion,
+  validateAiMatchingSuggestion,
   validateAiSuggestionEvidenceAgainstInput
 } from "./matching/aiAdapter";
 import { buildMatchConfidence, missingRequiredCount } from "./matching/confidence";
@@ -208,8 +215,20 @@ export type StructuredMatchReport = {
   adapterMetadata: {
     status: "notUsed" | "used" | "fallback";
     provider?: AiMatchingProvider;
-    reason?: string;
+    reasonCode?: AiFallbackReasonCode;
   };
+  aiShadowReview: AiShadowReview;
+};
+
+export type AiShadowReview = {
+  status: "notUsed" | "completed" | "fallback";
+  provider?: AiMatchingProvider;
+  reasonCode?: AiFallbackReasonCode;
+  latencyMs?: number;
+  rubricCandidates: AiRubricSuggestion[];
+  evidenceMatches: AiEvidenceSuggestion[];
+  riskFlags: string[];
+  confidence?: MatchConfidence;
 };
 
 export type AnalyzeStructuredMatchInput = {
@@ -460,7 +479,8 @@ export function analyzeStructuredMatch(input: AnalyzeStructuredMatchInput): Stru
     rubric,
     criterionAssessments,
     confidence,
-    adapterMetadata: { status: "notUsed" }
+    adapterMetadata: { status: "notUsed" },
+    aiShadowReview: emptyShadowReview("notUsed")
   };
 }
 
@@ -473,6 +493,10 @@ export async function analyzeStructuredMatchWithAdapter(
     return baseReport;
   }
 
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const requestId = globalThis.crypto.randomUUID();
+
   try {
     const suggestion = await withTimeout(
       input.adapter.suggest({
@@ -480,20 +504,23 @@ export async function analyzeStructuredMatchWithAdapter(
         candidateInfo: input.candidateInfo,
         supportingCriteria: input.supportingCriteria,
         language: input.language
+      }, {
+        signal: controller.signal,
+        requestId
       }),
-      input.adapterTimeoutMs ?? 3000
+      input.adapterTimeoutMs ?? 3000,
+      controller
     );
-    const sanitized = sanitizeAiMatchingSuggestion(suggestion);
+    const validation = validateAiMatchingSuggestion(suggestion, input.adapter.provider);
+    const sanitized = sanitizeAiMatchingSuggestion(suggestion, input.adapter.provider);
 
-    if (!sanitized) {
-      return {
-        ...baseReport,
-        adapterMetadata: {
-          status: "fallback",
-          provider: input.adapter.provider,
-          reason: "Invalid adapter suggestion schema."
-        }
-      };
+    if (!validation.valid || !sanitized) {
+      return withAiFallback(
+        baseReport,
+        input.adapter.provider,
+        validation.valid ? "INVALID_SCHEMA" : validation.reasonCode,
+        Date.now() - startedAt
+      );
     }
 
     const evidenceValidation = validateAiSuggestionEvidenceAgainstInput(sanitized, {
@@ -504,14 +531,12 @@ export async function analyzeStructuredMatchWithAdapter(
     });
 
     if (!evidenceValidation.valid) {
-      return {
-        ...baseReport,
-        adapterMetadata: {
-          status: "fallback",
-          provider: input.adapter.provider,
-          reason: evidenceValidation.error
-        }
-      };
+      return withAiFallback(
+        baseReport,
+        input.adapter.provider,
+        evidenceValidation.reasonCode,
+        Date.now() - startedAt
+      );
     }
 
     return {
@@ -519,17 +544,27 @@ export async function analyzeStructuredMatchWithAdapter(
       adapterMetadata: {
         status: "used",
         provider: sanitized.provider
+      },
+      aiShadowReview: {
+        status: "completed",
+        provider: sanitized.provider,
+        latencyMs: Date.now() - startedAt,
+        rubricCandidates: sanitized.rubricCandidates,
+        evidenceMatches: sanitized.evidenceMatches,
+        riskFlags: sanitized.riskFlags,
+        confidence: {
+          level: sanitized.confidence,
+          rationale: "검증된 AI shadow 제안의 근거 충분성입니다."
+        }
       }
     };
   } catch (error) {
-    return {
-      ...baseReport,
-      adapterMetadata: {
-        status: "fallback",
-        provider: input.adapter.provider,
-        reason: error instanceof Error ? error.message : "Adapter failed."
-      }
-    };
+    return withAiFallback(
+      baseReport,
+      input.adapter.provider,
+      error instanceof AiAdapterTimeoutError ? "TIMEOUT" : "ADAPTER_ERROR",
+      Date.now() - startedAt
+    );
   }
 }
 
@@ -743,14 +778,54 @@ function applyRequiredEvidenceCap(score: number, assessments: CriterionAssessmen
   return requiredAverage <= 55 ? Math.min(score, 69) : score;
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  controller: AbortController
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
 
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`Adapter timed out after ${timeoutMs}ms.`)), timeoutMs);
+    timer = setTimeout(() => {
+      reject(new AiAdapterTimeoutError());
+      controller.abort();
+    }, timeoutMs);
   });
 
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+class AiAdapterTimeoutError extends Error {}
+
+function emptyShadowReview(status: "notUsed" | "fallback"): AiShadowReview {
+  return {
+    status,
+    rubricCandidates: [],
+    evidenceMatches: [],
+    riskFlags: []
+  };
+}
+
+function withAiFallback(
+  report: StructuredMatchReport,
+  provider: AiMatchingProvider,
+  reasonCode: AiFallbackReasonCode,
+  latencyMs: number
+): StructuredMatchReport {
+  return {
+    ...report,
+    adapterMetadata: {
+      status: "fallback",
+      provider,
+      reasonCode
+    },
+    aiShadowReview: {
+      ...emptyShadowReview("fallback"),
+      provider,
+      reasonCode,
+      latencyMs
+    }
+  };
 }
 
 function buildStrengths(items: MatchScoreItem[]) {

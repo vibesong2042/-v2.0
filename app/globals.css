@@ -841,6 +841,31 @@ pre {
   text-align: left;
 }
 
+.analysisSourceBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f5f7f8;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.analysisSourceBadge.completed {
+  border-color: #9dc8c1;
+  background: #edf8f6;
+  color: #17665b;
+}
+
+.analysisSourceBadge.fallback {
+  border-color: #d9c491;
+  background: #fff8e7;
+  color: #795c17;
+}
+
 .reportBlock {
   margin-top: 16px;
 }

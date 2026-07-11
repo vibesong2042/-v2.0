@@ -33,11 +33,25 @@ const analysisInput = {
   weights: DEFAULT_WEIGHT_SET
 };
 
+function validSuggestion() {
+  return {
+    provider: "mock" as const,
+    rubricCandidates: [],
+    evidenceMatches: [],
+    riskFlags: [],
+    confidence: "근거 충분" as const
+  };
+}
+
 describe("AI matching adapter boundary", () => {
   it("returns schema-safe suggestions without deciding final score", async () => {
     const adapter = new MockAiMatchingAdapter();
+    const controller = new AbortController();
 
-    const result = await adapter.suggest(adapterInput);
+    const result = await adapter.suggest(adapterInput, {
+      signal: controller.signal,
+      requestId: "test-request"
+    });
 
     expect(result.provider).toBe("mock");
     expect(result.rubricCandidates.length).toBeGreaterThan(0);
@@ -58,8 +72,70 @@ describe("AI matching adapter boundary", () => {
       hiringDecision: "합격"
     };
 
-    expect(validateAiMatchingSuggestion(invalid).valid).toBe(false);
+    expect(validateAiMatchingSuggestion(invalid)).toEqual({
+      valid: false,
+      reasonCode: "FORBIDDEN_DECISION_FIELD"
+    });
     expect(sanitizeAiMatchingSuggestion(invalid)).toBeNull();
+  });
+
+  it("rejects a response provider that differs from the adapter provider", () => {
+    const result = validateAiMatchingSuggestion(
+      { ...validSuggestion(), provider: "openai" },
+      "mock"
+    );
+
+    expect(result).toEqual({ valid: false, reasonCode: "PROVIDER_MISMATCH" });
+  });
+
+  it("rejects suggestion arrays that exceed their bounded limits", () => {
+    const result = validateAiMatchingSuggestion({
+      ...validSuggestion(),
+      riskFlags: Array.from({ length: 13 }, (_, index) => `risk-${index}`)
+    });
+
+    expect(result).toEqual({ valid: false, reasonCode: "OUTPUT_TOO_LARGE" });
+  });
+
+  it("rejects suggestion strings that exceed their bounded limits", () => {
+    const result = validateAiMatchingSuggestion({
+      ...validSuggestion(),
+      rubricCandidates: [
+        {
+          title: "x".repeat(201),
+          category: "기술 역량",
+          required: true,
+          rationale: "근거"
+        }
+      ]
+    });
+
+    expect(result).toEqual({ valid: false, reasonCode: "OUTPUT_TOO_LARGE" });
+  });
+
+  it("rejects a serialized suggestion larger than 64KB", () => {
+    const result = validateAiMatchingSuggestion({
+      ...validSuggestion(),
+      riskFlags: ["x".repeat(64 * 1024)]
+    });
+
+    expect(result).toEqual({ valid: false, reasonCode: "OUTPUT_TOO_LARGE" });
+  });
+
+  it("rejects none evidence that still contains a sentence", () => {
+    const result = validateAiMatchingSuggestion({
+      ...validSuggestion(),
+      evidenceMatches: [
+        {
+          criterionTitle: "React 역량",
+          evidenceType: "none",
+          sentence: "React로 HR 리포트 화면을 개발했습니다.",
+          rationale: "근거 없음"
+        }
+      ]
+    });
+
+    expect(result).toEqual({ valid: false, reasonCode: "INVALID_SCHEMA" });
   });
 
   it("falls back to rule-based analysis when adapter throws", async () => {
@@ -76,7 +152,8 @@ describe("AI matching adapter boundary", () => {
 
     expect(report.overallMatch.score).toBe(baseline.overallMatch.score);
     expect(report.adapterMetadata?.status).toBe("fallback");
-    expect(report.adapterMetadata?.reason).toContain("adapter unavailable");
+    expect(report.adapterMetadata?.reasonCode).toBe("ADAPTER_ERROR");
+    expect(JSON.stringify(report)).not.toContain("adapter unavailable");
   });
 
   it("falls back to rule-based analysis when adapter returns invalid schema", async () => {
@@ -100,7 +177,7 @@ describe("AI matching adapter boundary", () => {
 
     expect(report.overallMatch.score).toBe(baseline.overallMatch.score);
     expect(report.adapterMetadata?.status).toBe("fallback");
-    expect(report.adapterMetadata?.reason).toContain("Invalid adapter suggestion");
+    expect(report.adapterMetadata?.reasonCode).toBe("FORBIDDEN_DECISION_FIELD");
   });
 
   it("falls back when adapter fabricates evidence that is not in the candidate document", async () => {
@@ -130,12 +207,86 @@ describe("AI matching adapter boundary", () => {
 
     expect(report.overallMatch.score).toBe(baseline.overallMatch.score);
     expect(report.adapterMetadata?.status).toBe("fallback");
-    expect(report.adapterMetadata?.reason).toContain("not found in candidate document");
+    expect(report.adapterMetadata?.reasonCode).toBe("EVIDENCE_NOT_FOUND");
+  });
+
+  it("aborts the adapter request and falls back with a fixed reason code on timeout", async () => {
+    let observedSignal: AbortSignal | undefined;
+    const baseline = analyzeStructuredMatch(analysisInput);
+    const report = await analyzeStructuredMatchWithAdapter({
+      ...analysisInput,
+      adapterTimeoutMs: 10,
+      adapter: {
+        provider: "mock",
+        async suggest(_input, context) {
+          observedSignal = context.signal;
+          return new Promise((_, reject) => {
+            context.signal.addEventListener("abort", () =>
+              reject(new Error("private provider endpoint failed"))
+            );
+          });
+        }
+      }
+    });
+
+    expect(observedSignal?.aborted).toBe(true);
+    expect(report.overallMatch.score).toBe(baseline.overallMatch.score);
+    expect(report.adapterMetadata).toMatchObject({
+      status: "fallback",
+      provider: "mock",
+      reasonCode: "TIMEOUT"
+    });
+    expect(JSON.stringify(report)).not.toContain("private provider endpoint failed");
+  });
+
+  it("preserves validated adapter suggestions in shadow mode without changing rule scores", async () => {
+    const baseline = analyzeStructuredMatch(analysisInput);
+    const report = await analyzeStructuredMatchWithAdapter({
+      ...analysisInput,
+      adapter: new MockAiMatchingAdapter()
+    });
+
+    expect(report.overallMatch).toEqual(baseline.overallMatch);
+    expect(report.criterionAssessments).toEqual(baseline.criterionAssessments);
+    expect(report.aiShadowReview.status).toBe("completed");
+    expect(report.aiShadowReview.provider).toBe("mock");
+    expect(report.aiShadowReview.rubricCandidates.length).toBeGreaterThan(0);
+    expect(report.aiShadowReview.evidenceMatches.length).toBeGreaterThan(0);
+  });
+
+  it("keeps each candidate resume isolated in separate adapter calls", async () => {
+    const observedResumes: string[] = [];
+    const adapter = {
+      provider: "mock" as const,
+      async suggest(input: typeof adapterInput) {
+        observedResumes.push(input.candidateInfo.candidateResume);
+        return validSuggestion();
+      }
+    };
+
+    await analyzeStructuredMatchWithAdapter({
+      ...analysisInput,
+      candidateInfo: { candidateResume: "후보자 A 전용 경력", referenceEmployeeResume: "" },
+      adapter
+    });
+    await analyzeStructuredMatchWithAdapter({
+      ...analysisInput,
+      candidateInfo: { candidateResume: "후보자 B 전용 경력", referenceEmployeeResume: "" },
+      adapter
+    });
+
+    expect(observedResumes).toEqual(["후보자 A 전용 경력", "후보자 B 전용 경력"]);
   });
 
   it("does not call an adapter during default rule-based analysis", () => {
     const report = analyzeStructuredMatch(analysisInput);
 
     expect(report.adapterMetadata).toEqual({ status: "notUsed" });
+    expect(report.aiShadowReview).toEqual({
+      status: "notUsed",
+      rubricCandidates: [],
+      evidenceMatches: [],
+      riskFlags: []
+    });
   });
 });

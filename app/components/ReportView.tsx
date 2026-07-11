@@ -79,7 +79,11 @@ export function ReportView({
         <tbody>
           <tr>
             <th>생성 상태</th>
-            <td>Mock 분석 결과</td>
+            <td>
+              <span className={`analysisSourceBadge ${report.aiShadowReview.status}`}>
+                {analysisSourceLabel(report)}
+              </span>
+            </td>
             <th>리포트 언어</th>
             <td>{report.language === "ko" ? "한국어" : "한국어(확장 예정)"}</td>
           </tr>
@@ -264,4 +268,10 @@ function evidenceTypeLabel(type: "direct" | "indirect" | "none") {
   if (type === "direct") return "직접 근거";
   if (type === "indirect") return "간접 근거";
   return "문서상 확인 불가";
+}
+
+function analysisSourceLabel(report: StructuredMatchReport) {
+  if (report.aiShadowReview.status === "completed") return "AI shadow 완료";
+  if (report.aiShadowReview.status === "fallback") return "AI 오류로 Rule 사용";
+  return "Rule 분석";
 }

@@ -23,9 +23,10 @@ import {
   ReportLanguage,
   ScoringWeightSet,
   StructuredMatchReport,
-  analyzeStructuredMatch,
+  analyzeStructuredMatchWithAdapter,
   generateStructuredReportText
 } from "../lib/matching";
+import { MockAiMatchingAdapter } from "../lib/matching/aiAdapter";
 import { canRunAnalysis } from "../lib/workflow";
 
 const steps: StepItem[] = [
@@ -39,6 +40,8 @@ const emptyDocument: DocumentInput = {
   text: "",
   parseStatus: "idle"
 };
+
+const mockAiMatchingAdapter = new MockAiMatchingAdapter();
 
 type CandidateAnalysisReport = CandidateReportSummary & {
   report: StructuredMatchReport;
@@ -81,6 +84,7 @@ export default function Home() {
     subjectiveOpinion: { ...emptyDocument }
   });
   const [candidateReports, setCandidateReports] = useState<CandidateAnalysisReport[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedCandidateId, setSelectedCandidateId] = useState("candidate-1");
   const selectedReport =
     candidateReports.find((candidateReport) => candidateReport.id === selectedCandidateId)?.report ??
@@ -145,14 +149,18 @@ export default function Home() {
     buildDocumentSummary("기타 주관식 의견", supporting.subjectiveOpinion, subjectiveOpinionActive, "분석 제외")
   ];
 
-  function runAnalysis() {
-    if (!analysisState.ok) {
+  async function runAnalysis() {
+    if (!analysisState.ok || isAnalyzing) {
       return;
     }
 
-    const nextReports = summarizeCandidateReports(
-      activeCandidateCases.map((candidateCase) => {
-        const report = analyzeStructuredMatch({
+    setIsAnalyzing(true);
+
+    try {
+      const reports: CandidateAnalysisReport[] = [];
+
+      for (const candidateCase of activeCandidateCases) {
+        const report = await analyzeStructuredMatchWithAdapter({
           coreCriteria: {
             jobDescription: core.jobDescription.text,
             additionalMaterial: core.additionalMaterial.text
@@ -167,23 +175,28 @@ export default function Home() {
             subjectiveOpinion: subjectiveOpinionActive ? supporting.subjectiveOpinion.text : ""
           },
           weights,
-          language
+          language,
+          adapter: mockAiMatchingAdapter
         });
 
-        return {
+        reports.push({
           id: candidateCase.id,
           name: candidateCase.name,
           score: report.overallMatch.score,
           confidence: report.confidence.level,
           report
-        };
-      })
-    );
+        });
+      }
 
-    setCandidateReports(nextReports);
-    setSelectedCandidateId(nextReports[0]?.id ?? activeCandidateCases[0]?.id ?? "candidate-1");
-    setActiveStep(3);
-    setCopyLabel("복사");
+      const nextReports = summarizeCandidateReports(reports);
+
+      setCandidateReports(nextReports);
+      setSelectedCandidateId(nextReports[0]?.id ?? activeCandidateCases[0]?.id ?? "candidate-1");
+      setActiveStep(3);
+      setCopyLabel("복사");
+    } finally {
+      setIsAnalyzing(false);
+    }
   }
 
   async function copyReport() {
@@ -619,8 +632,13 @@ export default function Home() {
             <button onClick={() => setActiveStep(1)} type="button">
               이전
             </button>
-            <button className="primary" disabled={!analysisState.ok} onClick={runAnalysis} type="button">
-              매칭 분석 실행
+            <button
+              className="primary"
+              disabled={!analysisState.ok || isAnalyzing}
+              onClick={() => void runAnalysis()}
+              type="button"
+            >
+              {isAnalyzing ? "분석 중" : "매칭 분석 실행"}
             </button>
           </div>
 

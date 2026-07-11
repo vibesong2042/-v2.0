@@ -9,6 +9,23 @@ import { evaluateCriterionEvidence } from "./evidence";
 
 export type AiMatchingProvider = "mock" | "openai" | "anthropic" | "google";
 
+export type AiFallbackReasonCode =
+  | "INVALID_SCHEMA"
+  | "PROVIDER_MISMATCH"
+  | "OUTPUT_TOO_LARGE"
+  | "EVIDENCE_NOT_FOUND"
+  | "FORBIDDEN_DECISION_FIELD"
+  | "TIMEOUT"
+  | "ADAPTER_ERROR";
+
+const MAX_RUBRIC_CANDIDATES = 12;
+const MAX_EVIDENCE_MATCHES = 24;
+const MAX_RISK_FLAGS = 12;
+const MAX_ITEM_LENGTH = 200;
+const MAX_EVIDENCE_LENGTH = 2_000;
+const MAX_RATIONALE_LENGTH = 1_000;
+const MAX_SERIALIZED_BYTES = 64 * 1024;
+
 export type AiRubricSuggestion = {
   title: string;
   category: string;
@@ -35,7 +52,7 @@ export type AiMatchingSuggestion = {
 
 export type AiMatchingValidationResult =
   | { valid: true }
-  | { valid: false; error: string };
+  | { valid: false; reasonCode: AiFallbackReasonCode };
 
 export type AiMatchingAdapterInput = {
   coreCriteria: CoreCriteriaInputs;
@@ -44,56 +61,92 @@ export type AiMatchingAdapterInput = {
   language: ReportLanguage;
 };
 
+export type AiAdapterContext = {
+  signal: AbortSignal;
+  requestId: string;
+};
+
 export interface AiMatchingAdapter {
   provider: AiMatchingProvider;
-  suggest(input: AiMatchingAdapterInput): Promise<AiMatchingSuggestion>;
+  suggest(input: AiMatchingAdapterInput, context: AiAdapterContext): Promise<AiMatchingSuggestion>;
 }
 
-export function validateAiMatchingSuggestion(value: unknown): AiMatchingValidationResult {
+export function validateAiMatchingSuggestion(
+  value: unknown,
+  expectedProvider?: AiMatchingProvider
+): AiMatchingValidationResult {
+  const serializedSize = getSerializedSize(value);
+  if (serializedSize === null) {
+    return invalid("INVALID_SCHEMA");
+  }
+  if (serializedSize > MAX_SERIALIZED_BYTES) {
+    return invalid("OUTPUT_TOO_LARGE");
+  }
+
   if (!isRecord(value)) {
-    return { valid: false, error: "Adapter suggestion must be an object." };
+    return invalid("INVALID_SCHEMA");
   }
 
   if ("finalScore" in value || "hiringDecision" in value) {
-    return {
-      valid: false,
-      error: "Adapter suggestion must not include finalScore or hiringDecision."
-    };
+    return invalid("FORBIDDEN_DECISION_FIELD");
   }
 
   if (!isProvider(value.provider)) {
-    return { valid: false, error: "Adapter suggestion provider is invalid." };
+    return invalid("INVALID_SCHEMA");
+  }
+
+  if (expectedProvider && value.provider !== expectedProvider) {
+    return invalid("PROVIDER_MISMATCH");
   }
 
   if (!Array.isArray(value.rubricCandidates)) {
-    return { valid: false, error: "Adapter suggestion rubricCandidates must be an array." };
+    return invalid("INVALID_SCHEMA");
   }
 
   if (!Array.isArray(value.evidenceMatches)) {
-    return { valid: false, error: "Adapter suggestion evidenceMatches must be an array." };
+    return invalid("INVALID_SCHEMA");
   }
 
   if (!Array.isArray(value.riskFlags) || !value.riskFlags.every((item) => typeof item === "string")) {
-    return { valid: false, error: "Adapter suggestion riskFlags must be a string array." };
+    return invalid("INVALID_SCHEMA");
+  }
+
+  if (
+    value.rubricCandidates.length > MAX_RUBRIC_CANDIDATES ||
+    value.evidenceMatches.length > MAX_EVIDENCE_MATCHES ||
+    value.riskFlags.length > MAX_RISK_FLAGS ||
+    value.riskFlags.some((item) => item.length > MAX_ITEM_LENGTH)
+  ) {
+    return invalid("OUTPUT_TOO_LARGE");
   }
 
   if (!isConfidence(value.confidence)) {
-    return { valid: false, error: "Adapter suggestion confidence is invalid." };
+    return invalid("INVALID_SCHEMA");
   }
 
   if (!value.rubricCandidates.every(isRubricSuggestion)) {
-    return { valid: false, error: "Adapter suggestion rubricCandidates schema is invalid." };
+    return invalid("INVALID_SCHEMA");
   }
 
   if (!value.evidenceMatches.every(isEvidenceSuggestion)) {
-    return { valid: false, error: "Adapter suggestion evidenceMatches schema is invalid." };
+    return invalid("INVALID_SCHEMA");
+  }
+
+  if (
+    value.rubricCandidates.some(hasOversizedRubricFields) ||
+    value.evidenceMatches.some(hasOversizedEvidenceFields)
+  ) {
+    return invalid("OUTPUT_TOO_LARGE");
   }
 
   return { valid: true };
 }
 
-export function sanitizeAiMatchingSuggestion(value: unknown): AiMatchingSuggestion | null {
-  const validation = validateAiMatchingSuggestion(value);
+export function sanitizeAiMatchingSuggestion(
+  value: unknown,
+  expectedProvider?: AiMatchingProvider
+): AiMatchingSuggestion | null {
+  const validation = validateAiMatchingSuggestion(value, expectedProvider);
   if (!validation.valid || !isRecord(value)) {
     return null;
   }
@@ -131,10 +184,7 @@ export function validateAiSuggestionEvidenceAgainstInput(
     }
 
     if (!candidateText.includes(normalize(evidence.sentence))) {
-      return {
-        valid: false,
-        error: "Adapter evidence sentence was not found in candidate document."
-      };
+      return invalid("EVIDENCE_NOT_FOUND");
     }
   }
 
@@ -144,7 +194,10 @@ export function validateAiSuggestionEvidenceAgainstInput(
 export class MockAiMatchingAdapter implements AiMatchingAdapter {
   provider: AiMatchingProvider = "mock";
 
-  async suggest(input: AiMatchingAdapterInput): Promise<AiMatchingSuggestion> {
+  async suggest(
+    input: AiMatchingAdapterInput,
+    _context: AiAdapterContext
+  ): Promise<AiMatchingSuggestion> {
     const rubric = buildEvaluationRubric(input.coreCriteria);
     const assessments = rubric.criteria.map((criterion) =>
       evaluateCriterionEvidence(criterion, input.candidateInfo.candidateResume)
@@ -207,8 +260,40 @@ function isEvidenceSuggestion(value: unknown): value is AiEvidenceSuggestion {
     typeof value.criterionTitle === "string" &&
     isEvidenceType(value.evidenceType) &&
     typeof value.sentence === "string" &&
-    typeof value.rationale === "string"
+    typeof value.rationale === "string" &&
+    (value.evidenceType === "none"
+      ? value.sentence.trim().length === 0
+      : value.sentence.trim().length > 0)
   );
+}
+
+function hasOversizedRubricFields(value: AiRubricSuggestion) {
+  return (
+    value.title.length > MAX_ITEM_LENGTH ||
+    value.category.length > MAX_ITEM_LENGTH ||
+    value.rationale.length > MAX_RATIONALE_LENGTH
+  );
+}
+
+function hasOversizedEvidenceFields(value: AiEvidenceSuggestion) {
+  return (
+    value.criterionTitle.length > MAX_ITEM_LENGTH ||
+    value.sentence.length > MAX_EVIDENCE_LENGTH ||
+    value.rationale.length > MAX_RATIONALE_LENGTH
+  );
+}
+
+function getSerializedSize(value: unknown) {
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? null : new TextEncoder().encode(serialized).byteLength;
+  } catch {
+    return null;
+  }
+}
+
+function invalid(reasonCode: AiFallbackReasonCode): AiMatchingValidationResult {
+  return { valid: false, reasonCode };
 }
 
 function normalize(value: string) {

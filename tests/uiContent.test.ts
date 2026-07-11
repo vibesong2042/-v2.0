@@ -83,6 +83,18 @@ describe("RoleFit Workbench UI content", () => {
     expect(source).toContain("report.confidence.rationale");
   });
 
+  it("shows whether the report used rule analysis, AI shadow, or fallback", () => {
+    const page = pageSource();
+    const report = reportSource();
+
+    expect(page).toContain("analyzeStructuredMatchWithAdapter");
+    expect(page).toContain("MockAiMatchingAdapter");
+    expect(report).toContain("report.aiShadowReview.status");
+    expect(report).toContain("Rule 분석");
+    expect(report).toContain("AI shadow 완료");
+    expect(report).toContain("AI 오류로 Rule 사용");
+  });
+
   it("mounts a department review panel below the analysis report", () => {
     const source = pageSource();
 
