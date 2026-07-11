@@ -812,13 +812,28 @@ textarea {
 
 .reportActions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin: 14px 0 8px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
   padding: 8px;
+}
+
+.reportPrivacyNotice {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.reportActionButtons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 pre {
@@ -1093,31 +1108,37 @@ pre {
   line-height: 1;
 }
 
-.coreMatchEvidenceClamp {
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 10px 0 8px;
-  color: #334155;
-  line-height: 1.55;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-.coreMatchEvidence {
+.coreMatchEvidenceBox,
+.coreMatchInterviewPrompt {
+  margin-top: 10px;
+  border: 1px solid #d6dbe4;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 10px 12px;
   color: #334155;
   font-size: 13px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-.coreMatchEvidence summary {
-  cursor: pointer;
-  color: #0f766e;
-  font-weight: 900;
+.coreMatchEvidenceBox > strong,
+.coreMatchInterviewPrompt > strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #25313d;
+  font-size: 12px;
 }
 
-.coreMatchEvidence summary:focus-visible {
-  outline: 3px solid rgba(14, 165, 233, 0.28);
-  outline-offset: 2px;
+.coreMatchEvidenceBox p,
+.coreMatchInterviewPrompt p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.coreMatchInterviewPrompt {
+  border-color: #d9c491;
+  background: #fffaf0;
 }
 
 .statusStrong {
@@ -1507,6 +1528,10 @@ pre {
   .candidateSummaryList button small:last-child {
     grid-column: 2 / -1;
   }
+
+  .reportActions {
+    align-items: stretch;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1542,6 +1567,15 @@ pre {
   }
 
   .compactUploadRow button {
+    width: 100%;
+  }
+
+  .reportActions {
+    display: grid;
+  }
+
+  .reportActionButtons,
+  .reportActionButtons button {
     width: 100%;
   }
 }

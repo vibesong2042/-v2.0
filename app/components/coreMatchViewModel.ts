@@ -2,6 +2,9 @@ import type { CriterionAssessment, EvidenceMatch } from "../../lib/matching";
 
 export type CoreMatchStatus = "strong" | "review" | "missing";
 
+const MAX_EVIDENCE_DISPLAY_LENGTH = 2_000;
+const EVIDENCE_OMISSION_NOTICE = "원문이 길어 일부 생략되었습니다.";
+
 export type CoreMatchSummary = {
   strong: number;
   review: number;
@@ -38,6 +41,20 @@ export function getCoreMatchIcon(status: CoreMatchStatus) {
   if (status === "strong") return "✓";
   if (status === "review") return "!";
   return "×";
+}
+
+export function formatCoreEvidenceForDisplay(evidence: string) {
+  if (evidence.length <= MAX_EVIDENCE_DISPLAY_LENGTH) {
+    return evidence;
+  }
+
+  const candidate = evidence.slice(0, MAX_EVIDENCE_DISPLAY_LENGTH);
+  const lastWhitespace = candidate.search(/\s+\S*$/u);
+  const cutAt = lastWhitespace >= MAX_EVIDENCE_DISPLAY_LENGTH * 0.8
+    ? lastWhitespace
+    : MAX_EVIDENCE_DISPLAY_LENGTH;
+
+  return `${candidate.slice(0, cutAt).trimEnd()}\n${EVIDENCE_OMISSION_NOTICE}`;
 }
 
 export function summarizeCoreMatches(assessments: CriterionAssessment[]): CoreMatchSummary {

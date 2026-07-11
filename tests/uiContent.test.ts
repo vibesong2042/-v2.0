@@ -102,6 +102,24 @@ describe("RoleFit Workbench UI content", () => {
     expect(source).not.toContain("report.coreIndicatorMatches.map((item, index)");
   });
 
+  it("shows core evidence directly without collapsible duplicate content", () => {
+    const source = reportSource();
+
+    expect(source).toContain("coreMatchEvidenceBox");
+    expect(source).toContain("판단 근거");
+    expect(source).toContain("인터뷰 확인 필요");
+    expect(source).not.toContain("판단 근거 더보기");
+    expect(source).not.toContain("<details");
+    expect(source).not.toContain("<summary");
+    expect(source).not.toContain("coreMatchEvidenceClamp");
+  });
+
+  it("warns that downloaded reports contain candidate evidence", () => {
+    const source = reportSource();
+
+    expect(source).toContain("후보자 원문 근거가 포함된 내부 검토 자료입니다.");
+  });
+
   it("renders report confidence for evidence sufficiency", () => {
     const source = reportSource();
 

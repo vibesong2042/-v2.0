@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CriterionAssessment, EvidenceMatch, RubricCriterion } from "../lib/matching";
 import {
+  formatCoreEvidenceForDisplay,
   getCoreMatchStatus,
   sortCoreMatchCards,
   summarizeCoreMatches
@@ -59,6 +60,23 @@ function assessment({
 }
 
 describe("core match view model", () => {
+  it("keeps evidence up to 2,000 characters unchanged", () => {
+    const evidence = "A".repeat(2_000);
+
+    expect(formatCoreEvidenceForDisplay(evidence)).toBe(evidence);
+  });
+
+  it("truncates oversized evidence at a word boundary without mutating the source", () => {
+    const evidence = `${"경험 ".repeat(800)}마지막 원문`;
+    const original = evidence;
+    const displayed = formatCoreEvidenceForDisplay(evidence);
+
+    expect(displayed.length).toBeLessThan(evidence.length);
+    expect(displayed).toContain("원문이 길어 일부 생략되었습니다.");
+    expect(displayed).not.toContain("마지막 원문");
+    expect(evidence).toBe(original);
+  });
+
   it("prioritizes missing evidence over a high score", () => {
     expect(getCoreMatchStatus(90, "none")).toBe("missing");
   });

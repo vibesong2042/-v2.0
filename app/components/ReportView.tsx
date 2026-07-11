@@ -4,6 +4,7 @@ import { ReactNode, RefObject } from "react";
 import { StructuredMatchReport } from "../../lib/matching";
 import {
   CoreMatchStatus,
+  formatCoreEvidenceForDisplay,
   getCoreMatchIcon,
   getCoreMatchLabel,
   getCoreMatchStatus,
@@ -49,16 +50,19 @@ export function ReportView({
 
   return (
     <section className="reportViewShell" aria-label="RoleFit Report">
-      <div className="reportActions">
-        <button onClick={onCopy} type="button">
-          {copyLabel}
-        </button>
-        <button onClick={onPdfDownload} type="button">
-          PDF 다운로드
-        </button>
-        <button onClick={onDownload} type="button">
-          TXT 다운로드
-        </button>
+       <div className="reportActions">
+         <p className="reportPrivacyNotice">후보자 원문 근거가 포함된 내부 검토 자료입니다.</p>
+         <div className="reportActionButtons">
+           <button onClick={onCopy} type="button">
+             {copyLabel}
+           </button>
+           <button onClick={onPdfDownload} type="button">
+             PDF 다운로드
+           </button>
+           <button onClick={onDownload} type="button">
+             TXT 다운로드
+           </button>
+         </div>
       </div>
 
       <section className="reportSheet" ref={reportContentRef} aria-label="RoleFit Report 문서">
@@ -122,10 +126,11 @@ export function ReportView({
           {sortedCoreMatches.map((assessment) => {
             const status = getCoreMatchStatus(assessment.score, assessment.evidence.type);
             const statusLabel = getCoreMatchLabel(status);
-            const evidenceText =
-              assessment.evidence.type === "none"
-                ? assessment.missing[0] ?? "지원자 문서상 확인 불가"
-                : assessment.evidence.sentence;
+             const evidenceText =
+               assessment.evidence.type === "none"
+                 ? assessment.missing[0] ?? "지원자 문서상 확인 불가"
+                 : assessment.evidence.sentence;
+             const displayedEvidence = formatCoreEvidenceForDisplay(evidenceText);
 
             return (
               <article
@@ -158,14 +163,16 @@ export function ReportView({
                   <strong>{statusLabel}</strong>
                   <span>{evidenceTypeLabel(assessment.evidence.type)}</span>
                 </div>
-                <p className="coreMatchEvidenceClamp">{evidenceText}</p>
-                <details className="coreMatchEvidence">
-                  <summary>판단 근거 더보기</summary>
-                  <p>{evidenceText}</p>
-                  {assessment.interviewQuestion ? (
-                    <p>인터뷰 확인: {assessment.interviewQuestion}</p>
-                  ) : null}
-                </details>
+                 <div className="coreMatchEvidenceBox">
+                   <strong>판단 근거</strong>
+                   <p>{displayedEvidence}</p>
+                 </div>
+                 {assessment.interviewQuestion ? (
+                   <div className="coreMatchInterviewPrompt">
+                     <strong>인터뷰 확인 필요</strong>
+                     <p>{assessment.interviewQuestion}</p>
+                   </div>
+                 ) : null}
               </article>
             );
           })}
