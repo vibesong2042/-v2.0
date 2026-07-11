@@ -353,12 +353,12 @@ button:disabled {
 
 .candidateSummaryPanel {
   display: grid;
-  gap: 14px;
+  gap: 10px;
   border: 1px solid #d7dde8;
   border-radius: 8px;
   background: #ffffff;
-  padding: 18px;
-  box-shadow: var(--shadow-soft);
+  padding: 16px;
+  box-shadow: none;
 }
 
 .candidateSummaryHeader {
@@ -378,14 +378,25 @@ button:disabled {
 
 .candidateSummaryList {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+}
+
+.candidateSummaryColumns,
+.candidateSummaryList button {
+  display: grid;
+  grid-template-columns: 52px minmax(180px, 1fr) 110px 130px 140px;
+  gap: 10px;
+  align-items: center;
+}
+
+.candidateSummaryColumns {
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .candidateSummaryList button {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto auto;
-  gap: 10px;
-  align-items: center;
   width: 100%;
   border: 1px solid #d7dde8;
   border-radius: 8px;
@@ -397,6 +408,7 @@ button:disabled {
 
 .candidateSummaryList button.selected {
   border-color: #14b8a6;
+  box-shadow: inset 4px 0 0 var(--accent-strong);
   background: #f0fdfa;
 }
 
@@ -414,7 +426,10 @@ button:disabled {
 }
 
 .candidateSummaryList strong {
+  overflow: hidden;
   color: #101828;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .candidateSummaryList em {
@@ -799,7 +814,11 @@ textarea {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-bottom: 12px;
+  margin: 14px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 8px;
 }
 
 pre {
@@ -819,8 +838,8 @@ pre {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
-  box-shadow: 0 8px 30px rgba(30, 41, 59, 0.05);
-  padding: 22px;
+  box-shadow: 0 3px 10px rgba(30, 41, 59, 0.05);
+  padding: 24px;
 }
 
 .reportTitleBar {
@@ -932,7 +951,7 @@ pre {
 .reportSectionBar {
   margin: 0 0 10px;
   border-radius: 4px 4px 0 0;
-  background: #111827;
+  background: #222a32;
   color: #fff;
   padding: 9px 12px;
   font-size: 15px;
@@ -1394,8 +1413,7 @@ pre {
   .reviewTimeline,
   .formGrid,
   .analysisTargetGrid,
-  .candidateCaseHeader,
-  .candidateSummaryList button {
+  .candidateCaseHeader {
     grid-template-columns: 1fr;
   }
 
@@ -1476,6 +1494,18 @@ pre {
 
   .compactUploadRow {
     align-items: flex-start;
+  }
+
+  .candidateSummaryColumns {
+    display: none;
+  }
+
+  .candidateSummaryList button {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+  }
+
+  .candidateSummaryList button small:last-child {
+    grid-column: 2 / -1;
   }
 }
 

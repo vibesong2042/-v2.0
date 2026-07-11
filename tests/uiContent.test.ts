@@ -118,8 +118,28 @@ describe("RoleFit Workbench UI content", () => {
     expect(page).toContain("MockAiMatchingAdapter");
     expect(report).toContain("report.aiShadowReview.status");
     expect(report).toContain("Rule 분석");
-    expect(report).toContain("AI shadow 완료");
+    expect(report).toContain("Mock AI shadow 완료");
     expect(report).toContain("AI 오류로 Rule 사용");
+  });
+
+  it("renders candidate comparison as aligned operational rows", () => {
+    const source = pageSource();
+
+    expect(source).toContain("candidateSummaryColumns");
+    expect(source).toContain("순위");
+    expect(source).toContain("종합점수");
+    expect(source).toContain("근거 충분성");
+    expect(source).toContain("분석 출처");
+    expect(source).toContain("candidateAnalysisSource");
+  });
+
+  it("keeps report download tools outside the PDF capture sheet", () => {
+    const source = reportSource();
+    const actionsIndex = source.indexOf('className="reportActions"');
+    const sheetIndex = source.indexOf('className="reportSheet"');
+
+    expect(actionsIndex).toBeGreaterThan(-1);
+    expect(sheetIndex).toBeGreaterThan(actionsIndex);
   });
 
   it("mounts a department review panel below the analysis report", () => {

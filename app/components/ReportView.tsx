@@ -271,7 +271,7 @@ function evidenceTypeLabel(type: "direct" | "indirect" | "none") {
 }
 
 function analysisSourceLabel(report: StructuredMatchReport) {
-  if (report.aiShadowReview.status === "completed") return "AI shadow 완료";
+  if (report.aiShadowReview.status === "completed") return "Mock AI shadow 완료";
   if (report.aiShadowReview.status === "fallback") return "AI 오류로 Rule 사용";
   return "Rule 분석";
 }

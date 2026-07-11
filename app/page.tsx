@@ -680,6 +680,13 @@ export default function Home() {
                 <h3>후보자 비교 요약</h3>
                 <p>점수 순으로 정렬되며, 후보자를 선택하면 아래 리포트가 변경됩니다.</p>
               </div>
+              <div className="candidateSummaryColumns" aria-hidden="true">
+                <span>순위</span>
+                <span>후보자</span>
+                <span>종합점수</span>
+                <span>근거 충분성</span>
+                <span>분석 출처</span>
+              </div>
               <div className="candidateSummaryList">
                 {candidateReports.map((candidateReport, index) => (
                   <button
@@ -695,6 +702,7 @@ export default function Home() {
                     <strong>{candidateReport.name}</strong>
                     <em>{candidateReport.score}%</em>
                     <small>{candidateReport.confidence}</small>
+                    <small>{candidateAnalysisSource(candidateReport.report)}</small>
                   </button>
                 ))}
               </div>
@@ -722,6 +730,18 @@ export default function Home() {
 
 function fileSafeName(value: string) {
   return value.replace(/[\\/:*?"<>|]+/g, "_").trim() || "candidate";
+}
+
+function candidateAnalysisSource(report: StructuredMatchReport) {
+  if (report.aiShadowReview.status === "completed") {
+    return "Mock AI shadow";
+  }
+
+  if (report.aiShadowReview.status === "fallback") {
+    return "Rule fallback";
+  }
+
+  return "Rule";
 }
 
 function isWeightedCriterionActive(
