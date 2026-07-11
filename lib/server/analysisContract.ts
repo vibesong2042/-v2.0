@@ -42,6 +42,7 @@ export type AnalyzeMatchErrorCode =
   | "FORBIDDEN"
   | "IDEMPOTENCY_CONFLICT"
   | "TOO_MANY_REQUESTS"
+  | "PAYLOAD_TOO_LARGE"
   | "INTERNAL_ERROR";
 
 export type AnalyzeMatchError = {

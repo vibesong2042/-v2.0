@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { MockAuthAdapter, type AuthContext } from "./auth";
 import { ReviewConflictError, ReviewServiceError } from "../reviews/service";
+import { JsonBodyError, readBoundedJson } from "./requestBody";
 
 const authAdapter = new MockAuthAdapter({ enabled: process.env.NODE_ENV !== "production" });
 
@@ -9,7 +10,16 @@ export async function authenticateReviewRequest(request: Request): Promise<AuthC
   return authAdapter.authenticate(request);
 }
 
+export async function readReviewJson(request: Request) {
+  return readBoundedJson(request, 5 * 1024 * 1024);
+}
+
 export function reviewErrorResponse(error: unknown) {
+  if (error instanceof JsonBodyError) {
+    return error.code === "PAYLOAD_TOO_LARGE"
+      ? apiError(413, error.code, "검토 요청 크기가 허용 범위를 초과했습니다.")
+      : apiError(400, error.code, "검토 요청 형식이 올바르지 않습니다.");
+  }
   if (error instanceof ReviewConflictError) {
     return apiError(409, error.code, error.message);
   }
@@ -41,4 +51,3 @@ export function apiJson(body: unknown, status = 200) {
 function noStoreHeaders() {
   return { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 }
-

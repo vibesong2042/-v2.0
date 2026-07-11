@@ -20,7 +20,8 @@ describe("RoleFit Workbench UI content", () => {
 
     expect(source).toContain('className="appHeader"');
     expect(source).toContain("Local");
-    expect(source).toContain("Mock AI Shadow");
+    expect(source).toContain("Mock Auth");
+    expect(source).toContain("Synthetic data only");
     expect(source).not.toContain('className="appHero"');
   });
 
@@ -151,6 +152,14 @@ describe("RoleFit Workbench UI content", () => {
     expect(source).not.toContain('"x-rolefit-mock-name": "로컬 채용담당자"');
     expect(source).not.toContain("analyzeStructuredMatchWithAdapter({");
     expect(source).not.toContain("new MockAiMatchingAdapter");
+  });
+
+  it("sends local mock authentication only to the protected extraction route", () => {
+    const source = documentInputCardSource();
+
+    expect(source).toContain('fetch("/api/extract-text"');
+    expect(source).toContain('"x-rolefit-mock-role": "Recruiter"');
+    expect(source).toContain('"x-rolefit-mock-user": "recruiter-1"');
   });
 
   it("renders candidate comparison as aligned operational rows", () => {

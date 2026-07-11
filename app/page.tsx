@@ -478,7 +478,8 @@ export default function Home() {
         </div>
         <div className="workspaceStatus" aria-label="실행 환경">
           <span className="environmentBadge">Local</span>
-          <span className="environmentBadge muted">Mock AI Shadow</span>
+          <span className="environmentBadge muted">Mock Auth</span>
+          <span className="environmentBadge muted">Synthetic data only</span>
           <button type="button" onClick={fillDemoExample}>
             테스트 예시 채우기
           </button>

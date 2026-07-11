@@ -97,4 +97,19 @@ describe("POST /api/analyze-match", () => {
       error: { code: "IDEMPOTENCY_CONFLICT" }
     });
   });
+
+  it("rejects an oversized actual body before JSON validation", async () => {
+    const large = payload("oversized");
+    large.candidateInfo.candidateResume.text = "가".repeat(2_000_000);
+    const oversizedRequest = request(large, "Recruiter");
+    oversizedRequest.headers.delete("content-length");
+
+    const response = await POST(oversizedRequest);
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "PAYLOAD_TOO_LARGE" }
+    });
+  });
 });

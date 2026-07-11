@@ -4,10 +4,18 @@ import {
   validateDocumentFileName,
   validateDocumentFileSize
 } from "../../../lib/documentExtraction";
+import { MockAuthAdapter, authorizeRole } from "../../../lib/server/auth";
 
 export const runtime = "nodejs";
+const authAdapter = new MockAuthAdapter({ enabled: process.env.NODE_ENV !== "production" });
 
 export async function POST(request: Request) {
+  const actor = await authAdapter.authenticate(request);
+  if (!actor) return extractionError(401, "인증이 필요합니다.");
+  if (!authorizeRole(actor, ["Recruiter", "Admin"])) {
+    return extractionError(403, "문서 추출 권한이 없습니다.");
+  }
+
   const formData = await request.formData();
   const file = formData.get("file");
 
@@ -47,4 +55,11 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+}
+
+function extractionError(status: number, error: string) {
+  return NextResponse.json(
+    { ok: false, fileName: "", fileType: "", error },
+    { status, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } }
+  );
 }

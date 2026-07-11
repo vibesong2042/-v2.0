@@ -57,6 +57,11 @@ export function DocumentInputCard({
     try {
       const response = await fetch("/api/extract-text", {
         method: "POST",
+        headers: {
+          "x-rolefit-mock-user": "recruiter-1",
+          "x-rolefit-mock-name": "Local Recruiter",
+          "x-rolefit-mock-role": "Recruiter"
+        },
         body: formData
       });
       const result = (await response.json()) as ExtractTextResult;

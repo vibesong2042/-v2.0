@@ -12,6 +12,7 @@ import {
   analyzeMatchOnServer,
   fingerprintAnalyzeMatchRequest
 } from "../../../lib/server/analysisService";
+import { JsonBodyError, readBoundedJson } from "../../../lib/server/requestBody";
 
 export const runtime = "nodejs";
 
@@ -20,11 +21,6 @@ const coordinator = new AnalysisExecutionCoordinator({ maxConcurrent: 2 });
 const authAdapter = new MockAuthAdapter({ enabled: process.env.NODE_ENV !== "production" });
 
 export async function POST(request: Request) {
-  const contentLength = Number(request.headers.get("content-length") ?? 0);
-  if (Number.isFinite(contentLength) && contentLength > MAX_JSON_BYTES) {
-    return errorResponse(400, "INVALID_REQUEST", "분석 요청 형식이 올바르지 않습니다.");
-  }
-
   const actor = await authAdapter.authenticate(request);
   if (!actor) {
     return errorResponse(401, "UNAUTHENTICATED", "인증이 필요합니다.");
@@ -36,8 +32,11 @@ export async function POST(request: Request) {
 
   let body: unknown;
   try {
-    body = await request.json();
-  } catch {
+    body = await readBoundedJson(request, MAX_JSON_BYTES);
+  } catch (error) {
+    if (error instanceof JsonBodyError && error.code === "PAYLOAD_TOO_LARGE") {
+      return errorResponse(413, error.code, "분석 요청 크기가 허용 범위를 초과했습니다.");
+    }
     return errorResponse(400, "INVALID_REQUEST", "분석 요청 형식이 올바르지 않습니다.");
   }
 
