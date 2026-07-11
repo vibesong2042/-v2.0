@@ -12,6 +12,7 @@ const stepNavSource = () => readFileSync("app/components/StepNav.tsx", "utf8");
 const globalStylesSource = () => readFileSync("app/globals.css", "utf8");
 const departmentReviewPanelSource = () =>
   readFileSync("app/components/DepartmentReviewPanel.tsx", "utf8");
+const reviewPortalSource = () => readFileSync("app/components/ReviewPortal.tsx", "utf8");
 
 describe("RoleFit Workbench UI content", () => {
   it("uses a compact operations header instead of a marketing hero", () => {
@@ -258,13 +259,27 @@ describe("RoleFit Workbench UI content", () => {
     expect(source).not.toContain("Document AI");
   });
 
-  it("renders the department review request and phone interview workflow", () => {
-    const source = departmentReviewPanelSource();
+  it("separates the recruiter request panel from the department reviewer kit", () => {
+    const recruiter = departmentReviewPanelSource();
+    const reviewer = reviewPortalSource();
 
-    expect(source).toContain("현업부서 검토 요청");
-    expect(source).toContain("부서장 화면 미리보기");
-    expect(source).toContain("전화인터뷰 결과표");
-    expect(source).toContain("실제 메일은 발송되지 않습니다");
-    expect(source).toContain("결과 회신 완료");
+    expect(recruiter).toContain("현업 부서 검토 요청");
+    expect(recruiter).toContain("Mock 검토 요청 생성");
+    expect(recruiter).toContain("부서장 검토 키트 열기");
+    expect(recruiter).toContain("CV 원문과 상세 평가 근거가 포함되지 않으며 실제 발송되지 않습니다");
+    expect(reviewer).toContain("스크리닝 근거");
+    expect(reviewer).toContain("CV 원본");
+    expect(reviewer).toContain("인터뷰 키트");
+    expect(reviewer).toContain("임시저장");
+    expect(reviewer).toContain("최종 제출");
+  });
+
+  it("keeps AI screening secondary to evidence and independent reviewer feedback", () => {
+    const source = reviewPortalSource();
+
+    expect(source).toContain("자동 추천이 아닌 검토 보조 정보");
+    expect(source).toContain("AI와 HR 스크리닝은 참고 정보입니다");
+    expect(source).toContain("부정확한 평가 표시");
+    expect(source).toContain('value="NOT_ASSESSED"');
   });
 });

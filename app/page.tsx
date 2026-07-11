@@ -88,6 +88,9 @@ export default function Home() {
     candidateReports.find((candidateReport) => candidateReport.id === selectedCandidateId)?.report ??
     candidateReports[0]?.report ??
     null;
+  const selectedCandidate =
+    candidateCases.find((candidateCase) => candidateCase.id === selectedCandidateId) ??
+    candidateCases[0];
   const activeCandidateCases = useMemo(
     () => candidateCases.filter(hasCandidateContent),
     [candidateCases]
@@ -747,7 +750,11 @@ export default function Home() {
             report={selectedReport}
             reportContentRef={reportPdfRef}
           />
-          <DepartmentReviewPanel report={selectedReport} />
+          <DepartmentReviewPanel
+            candidateName={selectedCandidate?.name ?? "합성 후보자"}
+            report={selectedReport}
+            resumeText={selectedCandidate?.resume.text ?? ""}
+          />
           <div className="footerActions">
             <button onClick={() => setActiveStep(2)} type="button">
               보조지표 수정
