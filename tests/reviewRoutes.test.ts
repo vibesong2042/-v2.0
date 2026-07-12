@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { POST as createReview } from "../app/api/review-requests/route";
 import { GET as getReview } from "../app/api/review-requests/[id]/route";
+import { POST as openReview } from "../app/api/review-requests/[id]/open/route";
 
 function recruiterHeaders() {
   return {
@@ -88,6 +89,55 @@ describe("review request routes", () => {
       { params: Promise.resolve({ id }) }
     );
     expect(allowed.status).toBe(200);
-    expect((await allowed.json()).data.resume.text).toBe("합성 CV");
+    const allowedPacket = await allowed.json();
+    expect(allowedPacket.data.resume.text).toBe("합성 CV");
+    expect(allowedPacket.data.request.status).toBe("SENT");
+
+    const opened = await openReview(
+      new Request(`http://localhost/api/review-requests/${id}/open`, {
+        method: "POST",
+        headers: {
+          "x-rolefit-mock-user": "reviewer-route-test",
+          "x-rolefit-mock-name": "Assigned Reviewer",
+          "x-rolefit-mock-role": "DepartmentReviewer"
+        }
+      }),
+      { params: Promise.resolve({ id }) }
+    );
+    expect(opened.status).toBe(200);
+    expect((await opened.json()).data.request.status).toBe("OPENED");
+  });
+
+  it("rejects oversized review request bodies", async () => {
+    const body = payload();
+    body.resume.text = "가".repeat(2_000_000);
+    const request = new Request("http://localhost/api/review-requests", {
+      method: "POST",
+      headers: recruiterHeaders(),
+      body: JSON.stringify(body)
+    });
+    request.headers.delete("content-length");
+
+    const response = await createReview(request);
+
+    expect(response.status).toBe(413);
+  });
+
+  it("rejects invalid review field limits", async () => {
+    const body = payload();
+    body.criteria = Array.from({ length: 13 }, (_, index) => ({
+      ...body.criteria[0],
+      id: `criterion-${index}`
+    }));
+
+    const response = await createReview(
+      new Request("http://localhost/api/review-requests", {
+        method: "POST",
+        headers: recruiterHeaders(),
+        body: JSON.stringify(body)
+      })
+    );
+
+    expect(response.status).toBe(400);
   });
 });

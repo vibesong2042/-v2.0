@@ -28,7 +28,12 @@ export class AnalysisExecutionCoordinator {
   private activeCount = 0;
 
   constructor(
-    private readonly options: { maxConcurrent: number; maxEntries?: number } = { maxConcurrent: 2 }
+    private readonly options: {
+      maxConcurrent: number;
+      maxEntries?: number;
+      ttlMs?: number;
+      now?: () => number;
+    } = { maxConcurrent: 2 }
   ) {}
 
   async execute<T>(
@@ -38,6 +43,7 @@ export class AnalysisExecutionCoordinator {
     operation: () => Promise<T>
   ): Promise<T> {
     const cacheKey = `${scope}:${idempotencyKey}`;
+    this.pruneExpired();
     const existing = this.executions.get(cacheKey) as CachedExecution<T> | undefined;
 
     if (existing) {
@@ -52,10 +58,15 @@ export class AnalysisExecutionCoordinator {
     }
 
     this.activeCount += 1;
-    const promise = operation().finally(() => {
-      this.activeCount -= 1;
-    });
-    this.executions.set(cacheKey, { fingerprint, promise, createdAt: Date.now() });
+    const promise = operation()
+      .catch((error) => {
+        this.executions.delete(cacheKey);
+        throw error;
+      })
+      .finally(() => {
+        this.activeCount -= 1;
+      });
+    this.executions.set(cacheKey, { fingerprint, promise, createdAt: this.now() });
     this.prune();
     return promise;
   }
@@ -68,6 +79,17 @@ export class AnalysisExecutionCoordinator {
       (left, right) => left[1].createdAt - right[1].createdAt
     )[0];
     if (oldest) this.executions.delete(oldest[0]);
+  }
+
+  private pruneExpired() {
+    const expiresBefore = this.now() - (this.options.ttlMs ?? 5 * 60 * 1000);
+    for (const [key, execution] of this.executions) {
+      if (execution.createdAt < expiresBefore) this.executions.delete(key);
+    }
+  }
+
+  private now() {
+    return this.options.now?.() ?? Date.now();
   }
 }
 

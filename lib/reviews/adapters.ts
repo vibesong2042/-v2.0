@@ -31,3 +31,6 @@ export class MockAuditAdapter implements AuditAdapter {
   }
 }
 
+export class NoopAuditAdapter implements AuditAdapter {
+  async record() {}
+}

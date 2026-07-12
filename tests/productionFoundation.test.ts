@@ -126,4 +126,33 @@ describe("production foundation", () => {
       coordinator.execute("recruiter-001", "same-key", "payload-b", async () => "other")
     ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
   });
+
+  it("removes failed executions so the same key can be retried", async () => {
+    const coordinator = new AnalysisExecutionCoordinator({ maxConcurrent: 2 });
+
+    await expect(
+      coordinator.execute("recruiter-001", "retry-key", "payload", async () => {
+        throw new Error("synthetic failure");
+      })
+    ).rejects.toThrow("synthetic failure");
+
+    await expect(
+      coordinator.execute("recruiter-001", "retry-key", "payload", async () => "retried")
+    ).resolves.toBe("retried");
+  });
+
+  it("expires completed executions after the configured TTL", async () => {
+    let now = 1_000;
+    const coordinator = new AnalysisExecutionCoordinator({
+      maxConcurrent: 2,
+      ttlMs: 5 * 60 * 1000,
+      now: () => now
+    });
+    let calls = 0;
+    const operation = async () => `result-${++calls}`;
+
+    await expect(coordinator.execute("recruiter-001", "ttl-key", "payload", operation)).resolves.toBe("result-1");
+    now += 5 * 60 * 1000 + 1;
+    await expect(coordinator.execute("recruiter-001", "ttl-key", "payload", operation)).resolves.toBe("result-2");
+  });
 });

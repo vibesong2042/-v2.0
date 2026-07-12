@@ -5,6 +5,7 @@ import {
   type InterviewFeedbackDraft,
   type ReviewRequest
 } from "./domain";
+import { NoopAuditAdapter, type AuditAdapter, type ReviewAuditEvent } from "./adapters";
 
 export type ReviewCriterion = {
   id: string;
@@ -55,39 +56,73 @@ export class ReviewConflictError extends Error {
 }
 
 export class InMemoryReviewRepository implements ReviewRepository {
-  private readonly packets = new Map<string, ReviewPacket>();
+  private readonly packets = new Map<string, { packet: ReviewPacket; createdAt: number }>();
 
-  constructor(initialPackets: ReviewPacket[] = []) {
-    initialPackets.forEach((packet) => this.packets.set(packet.request.id, clone(packet)));
+  constructor(
+    initialPackets: ReviewPacket[] = [],
+    private readonly options: { ttlMs?: number; maxEntries?: number; now?: () => number } = {}
+  ) {
+    initialPackets.forEach((packet) =>
+      this.packets.set(packet.request.id, { packet: clone(packet), createdAt: this.now() })
+    );
   }
 
   async get(id: string) {
-    const packet = this.packets.get(id);
-    return packet ? clone(packet) : null;
+    this.pruneExpired();
+    const entry = this.packets.get(id);
+    return entry ? clone(entry.packet) : null;
   }
 
   async insert(packet: ReviewPacket) {
+    this.pruneExpired();
     if (this.packets.has(packet.request.id)) {
       throw new ReviewConflictError("이미 존재하는 검토 요청입니다.");
     }
-    this.packets.set(packet.request.id, clone(packet));
+    this.packets.set(packet.request.id, { packet: clone(packet), createdAt: this.now() });
+    this.pruneCapacity();
     return clone(packet);
   }
 
   async save(packet: ReviewPacket, expectedRevision: number) {
+    this.pruneExpired();
     const current = this.packets.get(packet.request.id);
-    if (!current || current.request.revision !== expectedRevision) {
+    if (!current || current.packet.request.revision !== expectedRevision) {
       throw new ReviewConflictError("다른 사용자가 먼저 검토 내용을 변경했습니다.");
     }
     const next = clone(packet);
     next.request.revision = expectedRevision + 1;
-    this.packets.set(next.request.id, next);
+    this.packets.set(next.request.id, { packet: next, createdAt: current.createdAt });
     return clone(next);
+  }
+
+  private pruneExpired() {
+    const expiresBefore = this.now() - (this.options.ttlMs ?? 30 * 60 * 1000);
+    for (const [id, entry] of this.packets) {
+      if (entry.createdAt < expiresBefore) this.packets.delete(id);
+    }
+  }
+
+  private pruneCapacity() {
+    const maxEntries = this.options.maxEntries ?? 50;
+    while (this.packets.size > maxEntries) {
+      const entries = [...this.packets.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt);
+      const terminal = entries.find(([, entry]) =>
+        ["SUBMITTED", "CANCELLED", "EXPIRED"].includes(entry.packet.request.status)
+      );
+      this.packets.delete((terminal ?? entries[0])[0]);
+    }
+  }
+
+  private now() {
+    return this.options.now?.() ?? Date.now();
   }
 }
 
 export class ReviewWorkflowService {
-  constructor(private readonly repository: ReviewRepository) {}
+  constructor(
+    private readonly repository: ReviewRepository,
+    private readonly audit: AuditAdapter = new NoopAuditAdapter()
+  ) {}
 
   async create(
     input: Omit<ReviewPacket, "request" | "feedback"> & {
@@ -131,7 +166,9 @@ export class ReviewWorkflowService {
       resume: clone(input.resume),
       feedback: createEmptyInterviewFeedback(input.criteria.map((criterion) => criterion.id))
     };
-    return this.repository.insert(packet);
+    const created = await this.repository.insert(packet);
+    await this.record(created, actor, "CREATED");
+    return created;
   }
 
   async get(id: string, actor: ReviewActor) {
@@ -139,12 +176,19 @@ export class ReviewWorkflowService {
     this.assertCanRead(packet, actor);
     this.assertAvailable(packet);
 
-    if (actor.role === "DepartmentReviewer" && packet.request.status === "SENT") {
-      packet.request.status = "OPENED";
-      packet.request.openedAt = new Date().toISOString();
-      return this.repository.save(packet, packet.request.revision);
-    }
     return packet;
+  }
+
+  async open(id: string, actor: ReviewActor) {
+    const packet = await this.requiredPacket(id);
+    this.assertReviewer(packet, actor);
+    this.assertAvailable(packet);
+    if (packet.request.status !== "SENT") return packet;
+    packet.request.status = "OPENED";
+    packet.request.openedAt = new Date().toISOString();
+    const opened = await this.repository.save(packet, packet.request.revision);
+    await this.record(opened, actor, "OPENED");
+    return opened;
   }
 
   async saveDraft(
@@ -169,7 +213,9 @@ export class ReviewWorkflowService {
       packet.request.status = "IN_PROGRESS";
     }
     packet.feedback = clone(input.feedback);
-    return this.repository.save(packet, input.revision);
+    const saved = await this.repository.save(packet, input.revision);
+    await this.record(saved, actor, "DRAFT_SAVED");
+    return saved;
   }
 
   async submit(
@@ -200,7 +246,9 @@ export class ReviewWorkflowService {
     packet.request.status = "SUBMITTED";
     packet.request.openedAt ||= new Date().toISOString();
     packet.request.submittedAt = new Date().toISOString();
-    return this.repository.save(packet, input.revision);
+    const submitted = await this.repository.save(packet, input.revision);
+    await this.record(submitted, actor, "SUBMITTED");
+    return submitted;
   }
 
   async cancel(id: string, actor: ReviewActor) {
@@ -215,7 +263,9 @@ export class ReviewWorkflowService {
       throw new ReviewServiceError("INVALID_STATE", "현재 상태에서는 검토를 취소할 수 없습니다.");
     }
     packet.request.status = "CANCELLED";
-    return this.repository.save(packet, packet.request.revision);
+    const cancelled = await this.repository.save(packet, packet.request.revision);
+    await this.record(cancelled, actor, "CANCELLED");
+    return cancelled;
   }
 
   async remind(id: string, actor: ReviewActor) {
@@ -230,6 +280,7 @@ export class ReviewWorkflowService {
     if (packet.request.status === "SUBMITTED") {
       throw new ReviewServiceError("INVALID_STATE", "제출 완료된 요청에는 리마인더를 보낼 수 없습니다.");
     }
+    await this.record(packet, actor, "REMINDER_SENT");
     return packet;
   }
 
@@ -257,6 +308,21 @@ export class ReviewWorkflowService {
     if (packet.request.status === "CANCELLED" || packet.request.status === "EXPIRED") {
       throw new ReviewServiceError("INVALID_STATE", "만료되었거나 취소된 검토 요청입니다.");
     }
+  }
+
+  private async record(
+    packet: ReviewPacket,
+    actor: ReviewActor,
+    action: ReviewAuditEvent["action"]
+  ) {
+    await this.audit.record({
+      actorId: actor.userId,
+      requestId: packet.request.id,
+      candidateId: packet.request.candidateId,
+      action,
+      occurredAt: new Date().toISOString(),
+      outcome: "SUCCESS"
+    });
   }
 }
 

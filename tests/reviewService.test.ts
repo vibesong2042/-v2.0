@@ -7,6 +7,7 @@ import {
   ReviewWorkflowService,
   type ReviewPacket
 } from "../lib/reviews/service";
+import { MockAuditAdapter } from "../lib/reviews/adapters";
 
 function packet(): ReviewPacket {
   return {
@@ -79,6 +80,47 @@ describe("review workflow service", () => {
 
     await expect(service.get("review-1", { userId: "reviewer-1", role: "DepartmentReviewer" })).resolves.toBeTruthy();
     await expect(service.get("review-1", { userId: "other", role: "DepartmentReviewer" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("does not change review state when it is only read", async () => {
+    const service = new ReviewWorkflowService(new InMemoryReviewRepository([packet()]));
+
+    const current = await service.get("review-1", { userId: "reviewer-1", role: "DepartmentReviewer" });
+
+    expect(current.request.status).toBe("SENT");
+    expect(current.request.revision).toBe(0);
+  });
+
+  it("opens a review explicitly and records a privacy-safe audit event", async () => {
+    const audit = new MockAuditAdapter();
+    const service = new ReviewWorkflowService(new InMemoryReviewRepository([packet()]), audit);
+
+    const opened = await service.open("review-1", { userId: "reviewer-1", role: "DepartmentReviewer" });
+
+    expect(opened.request.status).toBe("OPENED");
+    expect(audit.list()).toEqual([
+      expect.objectContaining({
+        actorId: "reviewer-1",
+        requestId: "review-1",
+        candidateId: "candidate-1",
+        action: "OPENED",
+        outcome: "SUCCESS"
+      })
+    ]);
+    expect(JSON.stringify(audit.list())).not.toContain("합성 CV 본문");
+  });
+
+  it("expires in-memory review packets and removes their resume text", async () => {
+    let now = Date.parse("2026-07-12T00:00:00.000Z");
+    const repository = new InMemoryReviewRepository([packet()], {
+      ttlMs: 30 * 60 * 1000,
+      maxEntries: 50,
+      now: () => now
+    });
+
+    await expect(repository.get("review-1")).resolves.toBeTruthy();
+    now += 30 * 60 * 1000 + 1;
+    await expect(repository.get("review-1")).resolves.toBeNull();
   });
 
   it("moves an opened review to in progress when the assigned reviewer saves", async () => {

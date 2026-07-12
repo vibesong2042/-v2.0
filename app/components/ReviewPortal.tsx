@@ -34,8 +34,21 @@ export function ReviewPortal({ requestId, reviewerId }: { requestId: string; rev
       setError(result.error?.message ?? "검토 요청을 불러오지 못했습니다.");
       return;
     }
-    setPacket(result.data);
-    setFeedback(result.data.feedback);
+    let loadedPacket = result.data as ReviewPacket;
+    if (loadedPacket.request.status === "SENT") {
+      const opened = await fetch(`/api/review-requests/${requestId}/open`, {
+        method: "POST",
+        headers: reviewerHeaders(reviewerId)
+      });
+      const openedResult = await opened.json();
+      if (!opened.ok) {
+        setError(openedResult.error?.message ?? "검토 요청을 열지 못했습니다.");
+        return;
+      }
+      loadedPacket = openedResult.data;
+    }
+    setPacket(loadedPacket);
+    setFeedback(loadedPacket.feedback);
   }
 
   async function persist(action: "draft" | "submit") {
@@ -81,7 +94,7 @@ export function ReviewPortal({ requestId, reviewerId }: { requestId: string; rev
   return (
     <main className="reviewPortal">
       <header className="portalHeader">
-        <div><span className="environmentBadge">Mock SSO</span><p>RoleFit Interview Kit</p></div>
+        <div><span className="environmentBadge">Local Mock Auth</span><p>RoleFit Interview Kit</p></div>
         <div className="portalIdentity"><strong>{packet.jobTitle}</strong><span>{packet.candidateName}</span></div>
         <div className="portalDue"><span>검토 기한</span><strong>{formatDate(packet.request.dueAt)}</strong></div>
       </header>
