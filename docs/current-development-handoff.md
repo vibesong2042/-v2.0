@@ -1,176 +1,226 @@
-# 현재 개발상태 인수인계
+# RoleFit Workbench 최종 개발 인수인계서
 
-이 문서는 RoleFit Workbench의 현재 개발 결과물 상태와 다음 작업 경계를 정리한다.
+작성 기준일: `2026-07-12`
 
-## 1. 현재 목적
+## 1. 인수인계 기준선
 
-RoleFit Workbench는 생산기술연구소 직무 적합도 검토를 돕는 Next.js + TypeScript 기반 로컬 웹앱이다.
+- GitHub: `https://github.com/vibesong2042/-v2.0.git` (Private)
+- 기준 브랜치: `main`
+- 기준 태그: `home-handoff-2026-07-12`
+- 기준 커밋: `fc643542 Fix mock review request identity and opening`
+- 검증 결과: `25개 테스트 파일 / 171개 테스트 통과`
+- 의존성 감사: `npm audit` 취약점 `0건`
 
-현재 버전은 자동 합격/불합격 판정 도구가 아니다. 직무기술서, 추가 설명자료, 후보자 CV, 보조지표를 바탕으로 HR 담당자와 현업부서가 검토할 수 있는 리포트 초안을 만든다.
+회사 PC에서 기준선이 맞는지 확인합니다.
 
-현재 인증은 개발 전용 Mock Auth다. 실제 SSO가 연결되기 전에는 합성 데이터만 사용하고 `127.0.0.1`에서만 실행한다.
+```powershell
+git branch --show-current
+git log -1 --oneline
+git tag --points-at HEAD
+```
 
-회사 API, Knox 메일 API, 인증, DB, 운영 파일 저장소는 아직 연결하지 않았다.
+정상 결과에는 `main`, `fc643542`, `home-handoff-2026-07-12`가 표시되어야 합니다.
 
-## 2. 최근 완료된 작업
+## 2. 제품 목적과 현재 사용 제한
 
-최근 기준 커밋:
+RoleFit Workbench는 생산기술연구소 채용 검토를 보조하는 Next.js + TypeScript 웹앱입니다. 직무기술서와 후보자 CV를 비교해 근거가 포함된 리포트를 만들고, 현업 부서 검토 요청과 인터뷰 결과 회신 흐름을 제공합니다.
+
+현재 버전은 다음 조건에서만 사용합니다.
 
 ```text
-c16384f6 Add PDF report download
-97c5eb9d Improve multi-candidate analysis workflow
-2e2b8982 Add RoleFit high-risk review harness
+Local
+Mock Auth
+Synthetic data only
 ```
 
-완료된 주요 기능:
+- 자동 합격·불합격 판정 도구가 아닙니다.
+- 실제 SSO가 연결되기 전에는 합성 데이터만 사용합니다.
+- `127.0.0.1`에서만 실행하며 `0.0.0.0`으로 네트워크에 공개하지 않습니다.
+- 실제 이력서, 후보자 개인정보, 회사 내부 문서는 입력하거나 Git에 저장하지 않습니다.
 
-- 한 포지션에 여러 후보자 CV/이력서를 등록할 수 있다.
-- 후보자별 리포트를 생성하고 점수 순으로 비교할 수 있다.
-- 빈 후보자 슬롯은 분석 실행을 막지 않는다.
-- 후보자 CV가 1명도 없으면 분석 실행을 막고 사유를 표시한다.
-- 추가 설명자료, 기존 입사자 CV, 보조지표 문서는 텍스트가 있을 때 확인 완료가 필요하다.
-- 보조지표는 `enabled && weight > 0`일 때만 분석에 사용된다.
-- 0% 가중치 보조지표는 분석 제외로 표시되고 분석 입력에서도 제외된다.
-- 3단계 화면에서 분석 대상 요약과 차단 사유별 이동 버튼을 제공한다.
-- 첨부 삭제 버튼으로 파일명, 텍스트, 파싱 상태, 검증 상태를 초기화할 수 있다.
-- 리포트는 TXT 다운로드와 PDF 다운로드를 모두 지원한다.
-- PDF는 현재 선택된 후보자 리포트 1개를 화면 캡처 기반으로 저장한다.
+## 3. 완료된 기능
 
-## 3. 현재 지원 범위
+### 문서 입력과 분석
 
-지원하는 입력:
+- 수동 입력과 drag-and-drop 파일 첨부
+- PDF, DOC, DOCX, XLSX, CSV, TXT, MD 텍스트 추출
+- 추출 결과 수정 및 `내용 확인 완료` 검증 게이트
+- 한 포지션의 복수 후보자 등록·삭제·개별 분석
+- 직무기술서, 추가 설명자료, 팀 전략, MBO, 주관식 의견 반영
+- 가중치 100% 검증과 0% 보조지표 분석 제외
+- 생산기술연구소 직무 중심 Rule 기반 매칭
+- AI 결과를 점수에 반영하지 않는 Mock shadow 경계
 
-- 수동 텍스트 입력
-- PDF
-- Word
-- Excel
-- CSV
-- TXT
-- MD
+### 리포트와 현업 검토
 
-지원하는 분석:
+- 후보자 비교와 핵심지표별 점수·판단 근거 상시 표시
+- 확인 불가 역량과 인터뷰 질문 Top 3 생성
+- 후보자별 TXT·PDF 다운로드
+- 현업 부서 검토 요청 생성
+- 별도 부서장 검토 포털
+- 검토 열람, 임시저장, 제출, 취소, 리마인더 상태 전이
+- revision 기반 동시 수정 충돌 방지
 
-- 직무기술서 기반 핵심지표 매칭
-- 추가 설명자료 반영
-- 후보자별 CV/이력서 매칭
-- 기존 입사자 CV 유사도 비교
-- 팀별 전략자료, 보직장 MBO, 기타 의견 기반 보조지표 매칭
-- 가중치 합계 100% 검증
-- 한국어 리포트 생성
+### 로컬 보안 기반
 
-지원하는 출력:
+- 분석·문서 추출·검토 API의 Mock Auth와 역할 검사
+- JSON 요청 실제 크기 `5MB` 제한
+- 검토 항목·문자열·점수·기한 검증
+- 분석 cache `5분` TTL, 실패 요청 즉시 제거
+- Mock 검토 데이터 `30분` TTL, 최대 `50건`
+- 개인정보 원문을 넣지 않는 Mock 감사 이벤트
+- production 환경에서 Mock Auth fail-closed
 
-- 화면 리포트
-- 후보자별 TXT 리포트 다운로드
-- 후보자별 PDF 리포트 다운로드
-- 현업부서 검토 요청 mock 흐름
-- 전화인터뷰 결과표 mock 회신 흐름
+## 4. 아직 회사에서 구현해야 하는 항목
 
-## 4. 아직 미연동인 항목
+현재 Mock 구현을 삭제하지 말고 adapter 경계를 통해 실제 회사 구현으로 교체합니다.
 
-아래 항목은 회사 환경에서 별도 확인 후 구현한다.
+1. 회사 SSO와 역할 매핑
+2. 사내 DB와 암호화 Object Storage
+3. 파일 magic bytes, 악성코드, 압축 폭탄, parser timeout 검사
+4. 원본·추출 텍스트·PDF·cache·backup 보존 및 삭제 정책
+5. 다운로드 권한, 워터마크, 감사기록
+6. Knox 검토 링크 발송과 임직원 검색 API
+7. 사내 생성형 AI shadow adapter
+8. 승인·비식별된 실제 업무 표본 calibration
+9. 스테이징 배포, 침투 테스트, 백업 복구 테스트
 
-- Knox 메일 API 실제 발송
-- 회사 임직원/부서장 검색 API
-- 회사 인증/권한
-- DB 저장
-- 운영 파일 저장소
-- 실제 개인정보 저장 정책
-- 외부 LLM API
-- 외부 OCR/Document AI API
+SSO·저장소·Knox·AI를 한 번에 구현하거나 한 커밋으로 묶지 않습니다.
 
-현재 Mock Auth 상태에서는 `0.0.0.0` 네트워크 공개 실행을 지원하지 않는다.
-
-mock 흐름은 삭제하지 않는다. 실제 API는 adapter 방식으로 옆에 추가한다.
-
-## 5. 집에서 완료한 검증 명령
-
-최근 기능 커밋 전후로 아래 명령을 실행해 통과를 확인했다.
+## 5. 회사 PC에서 처음 실행
 
 ```powershell
-npm.cmd test
-npm.cmd run typecheck
-npm.cmd run build
-npm.cmd run lint
-```
-
-회사 PC에서 clone 또는 pull한 뒤에도 같은 명령을 다시 실행해야 한다.
-
-## 6. 회사에서 이어서 할 일
-
-회사 PC에서 먼저 실행 환경을 재현한다.
-
-```powershell
+cd C:\work
 git clone https://github.com/vibesong2042/-v2.0.git
 cd -v2.0
+git switch main
+git merge-base --is-ancestor home-handoff-2026-07-12 HEAD
 npm.cmd ci
 npm.cmd test
-npm.cmd run typecheck
+npm.cmd run lint
 npm.cmd run build
 npm.cmd run dev -- --hostname 127.0.0.1 --port 3000
 ```
 
-그 다음 회사에서만 확인 가능한 항목을 정리한다.
+브라우저 접속:
 
-- GitHub 접근 가능 여부
-- npm registry/proxy 필요 여부
-- Knox 메일 API URL
-- Knox 인증 방식
-- 테스트 계정
-- 테스트 수신자
-- 임직원 검색 API 스펙
-- 실제 이력서/문서 저장 가능 여부
-- 로그에 남기면 안 되는 개인정보/회사정보 기준
+```text
+http://127.0.0.1:3000
+```
 
-## 7. 다음 개발 우선순위
+`git merge-base`가 오류 없이 끝나면 `main`에 집 개발 기준선이 포함된 것입니다. 태그를 직접 checkout하면 인수인계 문서 커밋 전 상태로 이동하므로 회사 작업은 최신 `main`에서 시작합니다.
 
-1. 회사 PC에서 현재 개발 결과물 실행 재현.
-2. 실제 API 스펙 확인 전까지 mock 흐름 유지.
-3. Knox 메일 API와 임직원 검색 API를 adapter 방식으로 분리 설계.
-4. PDF 다운로드 결과물을 회사 PC에서 직접 열어 품질 확인.
-5. 실제 후보자/회사 문서를 쓰기 전 보안 저장 정책 확인.
-6. 외부 LLM/OCR/Document AI는 회사 승인 후 별도 PoC로 진행.
+## 6. Git 원격 저장소 분리
 
-## 8. 주의사항
+회사에서는 개인 GitHub를 내려받기 전용으로 유지하고 회사 변경사항은 사내 승인 저장소에만 push합니다.
 
-GitHub에 올리면 안 되는 정보:
+```powershell
+git switch main
+git remote rename origin home-readonly
+git remote set-url --push home-readonly https://github.invalid/push-disabled
+git remote add origin <회사-승인-저장소-URL>
+git remote -v
+```
 
-- 실제 이력서 원본
-- 개인정보
-- 회사 내부 문서 원본
+회사 저장소 기준 브랜치를 올릴 권한이 확인된 뒤에만 실행합니다.
+
+```powershell
+git push -u origin main
+git switch -c feature/company-sso
+```
+
+개인 GitHub에는 회사 코드, 회사 API URL, 인증 방식 상세, 내부 문서, 실제 CV를 push하지 않습니다.
+
+## 7. 회사 개발 권장 순서
+
+### Gate 1: 환경과 정책 확인
+
+- 승인 Node.js 버전과 npm registry/proxy
+- 개발·스테이징·운영 저장소와 배포 방식
+- SSO 사용자 식별자와 역할 정보
+- CV 저장·삭제·백업·legal hold 정책
+- 사내 AI 전송 허용 범위
+- Knox·임직원 검색 API 명세와 테스트 계정
+
+### Gate 2: SSO
+
+- `MockAuthAdapter`를 유지하고 `CompanySsoAuthAdapter` 추가
+- URL의 `reviewer` 파라미터를 SSO 세션 사용자로 교체
+- 모든 API의 서버 역할·소유권 검사
+
+### Gate 3: 저장소와 파일 보안
+
+- 인메모리 repository를 DB/Object Storage adapter로 교체
+- 암호화·보존·삭제·다운로드·감사정책 적용
+- 실제 파일 사용 전 악성파일·파일 signature·timeout 검사
+
+### Gate 4: Knox와 사내 AI
+
+- CV 첨부 대신 인증된 검토 링크 발송
+- AI는 후보자별 shadow mode로 시작
+- Rule 점수는 유지하고 허위 근거율·fallback률·지연시간 검증
+
+## 8. Claude Code 인수인계 프롬프트
+
+프로젝트 루트에서 `claude`를 실행한 후 다음 요청으로 시작합니다.
+
+```text
+CLAUDE.md, AGENTS.md, README.md, docs/current-development-handoff.md,
+docs/production-readiness-gates.md, docs/rolefit-company-integration.md를 먼저 읽어줘.
+
+현재 기준선이 home-handoff-2026-07-12인지 확인하고,
+npm.cmd test, npm.cmd run lint, npm.cmd run build를 실행해줘.
+
+아직 코드를 수정하지 말고 Company SSO 연결에 필요한 회사 정보,
+수정 파일 경계, 보안 위험, 테스트 계획만 정리해줘.
+실제 CV, 회사 문서, API key는 사용하지 마.
+```
+
+## 9. 검증과 롤백 원칙
+
+작업 전후 기본 검증:
+
+```powershell
+git status --short
+npm.cmd test
+npm.cmd run lint
+npm.cmd run build
+```
+
+- 회사 기능은 `feature/company-*` 브랜치에서 작업합니다.
+- SSO, 저장소, Knox, AI는 각각 별도 커밋·PR로 분리합니다.
+- 실패 시 해당 기능 커밋만 `git revert <commit>`로 되돌립니다.
+- `git reset --hard`, 강제 push, 실제 데이터 삭제는 별도 승인 없이 사용하지 않습니다.
+
+## 10. 알려진 한계
+
+- Mock 검토 데이터는 30분 또는 서버 재시작 시 사라집니다.
+- 이미지 스캔 PDF OCR은 지원하지 않습니다.
+- 복잡한 표·서식과 legacy DOC/XLS는 추출 품질이 제한될 수 있습니다.
+- PDF는 화면 캡처 방식이라 리포트 길이에 따라 파일 크기와 페이지 수가 증가합니다.
+- 영어·중국어는 선택 UI만 있고 실제 출력은 한국어입니다.
+- Mock reviewer URL과 Mock 헤더는 실제 인증 수단이 아닙니다.
+
+## 11. 절대 Git에 올리지 않는 정보
+
+- 실제 이력서와 면접 기록
+- 후보자 이름, 연락처, 이메일, 학력·경력 원문
+- 회사 내부 문서와 전략자료 원문
 - API key, token, password, credential
-- Knox 인증정보
-- `.env*`
-- `node_modules/`
-- `.next/`
-- `.npm-cache/`
-- 로그 파일
-- `*.tsbuildinfo`
+- 회사 API URL과 Knox 인증정보
+- `.env*`, 로그, cache, `node_modules`, `.next`
 
-`next-env.d.ts`는 Next.js가 자동으로 수정할 수 있다. 기능 변경과 직접 관련 없는 자동 변경은 커밋에 섞지 않는다.
+## 초딩 버전 설명
 
-## 9. 초딩 버전 설명
+집에서 만든 앱은 연습용 출입증과 연습용 창고까지 완성했습니다.
 
-지금 앱은 집에서 만들 수 있는 기능을 거의 완성한 상태다.
-
-할 수 있는 것:
+회사에서는 다음 순서로 진짜 장치를 붙입니다.
 
 ```text
-후보자 여러 명 넣기
-파일 읽기
-내용 확인하기
-매칭 리포트 만들기
-TXT/PDF로 저장하기
-현업부서 검토 흐름을 mock으로 보기
+1. GitHub에서 정해진 버전을 내려받는다.
+2. 개인 GitHub에는 회사 결과를 다시 올리지 못하게 막는다.
+3. 회사 출입증인 SSO를 붙인다.
+4. 안전한 회사 창고를 붙인다.
+5. Knox와 사내 AI를 마지막에 붙인다.
+6. 보안 검사가 끝난 뒤에만 실제 이력서를 사용한다.
 ```
-
-회사에서만 해야 하는 것:
-
-```text
-진짜 Knox 메일 연결
-진짜 회사 사람 검색 연결
-회사 보안정책 확인
-실제 계정으로 테스트
-```
-
-즉, 앱 자체는 GitHub에서 내려받아 실행할 수 있는 개발 결과물이고, 회사에서는 회사 문을 여는 열쇠만 확인하면 된다.

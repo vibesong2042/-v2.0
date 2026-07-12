@@ -1,6 +1,6 @@
 # 회사 PC 인수인계 가이드
 
-이 문서는 회사 PC에서 RoleFit Workbench를 내려받고, 실행하고, 데모하고, Claude Code로 이어서 개발하기 위한 따라 하기 설명서입니다.
+이 문서는 회사 PC에서 RoleFit Workbench를 내려받고, 검증하고, 합성 데이터로 확인한 뒤 Claude Code로 이어서 개발하기 위한 따라 하기 설명서입니다.
 
 ## 1. 회사 PC 준비
 
@@ -141,7 +141,7 @@ PowerShell 창이 앱 가게 문을 열어두는 역할입니다.
 
 회사망 공유 접속은 SSO, 서버 권한 검사, 운영 배포 정책이 준비된 뒤 별도 검증합니다.
 
-## 8. 데모 진행 순서
+## 8. 로컬 합성 데이터 확인 순서
 
 앱을 켠 뒤 아래 순서로 보여주면 됩니다.
 
@@ -171,13 +171,13 @@ PowerShell 창이 앱 가게 문을 열어두는 역할입니다.
    - 부서장 검색
    - 부서장 선택
    - 검토 요청 미리보기 확인
-   - `Mock 검토 요청 발송` 클릭
+   - `Mock 검토 요청 생성` 클릭
 
-6. `부서장 화면 미리보기`
-   - 부서장이 보는 화면처럼 리포트 요약 확인
-   - 전화인터뷰 결과표 작성
-   - `Mock 결과 회신` 클릭
-   - `결과 회신 완료` 상태 확인
+6. `부서장 검토 키트`
+   - `부서장 검토 키트 열기` 클릭
+   - 검토 요약, 스크리닝 근거, CV 원본, 인터뷰 키트 확인
+   - 인터뷰 결과 임시저장
+   - 최종 제출 후 읽기 전용 상태 확인
 
 초딩 버전:
 
@@ -188,14 +188,14 @@ PowerShell 창이 앱 가게 문을 열어두는 역할입니다.
 가짜 메일로 연습해보는 화면입니다.
 ```
 
-## 9. 데모 때 꼭 말해야 할 것
+## 9. 현재 결과물을 설명할 때 꼭 말해야 할 것
 
 그룹장이나 회사 사람에게 아래처럼 설명합니다.
 
 ```text
-현재 버전은 사내 API 연결 전 데모 모드입니다.
+현재 버전은 사내 API 연결 전 Local Mock 모드입니다.
 실제 메일은 발송하지 않고, Knox 메일 API와 임직원 검색 API를 붙이기 전 업무 흐름을 먼저 검증하는 상태입니다.
-파일 파싱, 매칭 리포트, 부서장 검토 요청, 전화인터뷰 결과 회신 화면까지는 로컬에서 시연 가능합니다.
+파일 파싱, 매칭 리포트, 부서장 검토 요청, 인터뷰 결과 임시저장·제출까지 합성 데이터로 확인 가능합니다.
 ```
 
 ## 10. Claude Code로 이어서 개발하기
@@ -212,7 +212,9 @@ claude
 ```text
 이 프로젝트는 RoleFit Workbench 채용 매칭 MVP입니다.
 
-먼저 CLAUDE.md, README.md, package.json, app/page.tsx, lib/matching.ts, app/components/ReportView.tsx, app/components/DepartmentReviewPanel.tsx, lib/departmentReview.ts, lib/employees.ts를 읽고 현재 구조를 요약해줘.
+먼저 CLAUDE.md, AGENTS.md, README.md, docs/current-development-handoff.md,
+docs/production-readiness-gates.md, app/page.tsx, lib/matching.ts,
+lib/server/analysisService.ts, lib/reviews/service.ts를 읽고 현재 구조를 요약해줘.
 
 아직 구현하지 말고, 회사 API 연동 전에 확인해야 할 항목과 리스크만 정리해줘.
 ```
@@ -329,5 +331,5 @@ mock을 지우지 말고, real adapter를 옆에 추가한다.
 ```text
 연습용 리모컨을 버리고 진짜 리모컨을 바로 꽂지 않습니다.
 둘 다 꽂을 수 있게 만들어야 합니다.
-그래야 진짜 리모컨이 고장 나도 연습용으로 계속 데모할 수 있습니다.
+그래야 실제 회사 연동이 실패해도 합성 데이터 기반 기준선을 유지하고 문제를 분리할 수 있습니다.
 ```
