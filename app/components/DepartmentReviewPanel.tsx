@@ -11,10 +11,12 @@ type CreatedReview = Pick<ReviewPacket, "request" | "candidateName" | "jobTitle"
 
 export function DepartmentReviewPanel({
   report,
+  candidateId,
   candidateName,
   resumeText
 }: {
   report: StructuredMatchReport | null;
+  candidateId: string;
   candidateName: string;
   resumeText: string;
 }) {
@@ -60,7 +62,7 @@ export function DepartmentReviewPanel({
         headers: mockHeaders("recruiter-1", "Local Recruiter", "Recruiter"),
         body: JSON.stringify({
           jobId: "local-job",
-          candidateId: `local-${candidateName || "candidate"}`,
+          candidateId,
           reportId: `report-${Date.now()}`,
           resumeDocumentId: `resume-${Date.now()}`,
           resumeVersion: "v1",

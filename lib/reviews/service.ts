@@ -186,7 +186,17 @@ export class ReviewWorkflowService {
     if (packet.request.status !== "SENT") return packet;
     packet.request.status = "OPENED";
     packet.request.openedAt = new Date().toISOString();
-    const opened = await this.repository.save(packet, packet.request.revision);
+    let opened: ReviewPacket;
+    try {
+      opened = await this.repository.save(packet, packet.request.revision);
+    } catch (error) {
+      if (!(error instanceof ReviewConflictError)) throw error;
+      const latest = await this.requiredPacket(id);
+      this.assertReviewer(latest, actor);
+      this.assertAvailable(latest);
+      if (latest.request.status === "SENT") throw error;
+      return latest;
+    }
     await this.record(opened, actor, "OPENED");
     return opened;
   }

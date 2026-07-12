@@ -110,6 +110,19 @@ describe("review workflow service", () => {
     expect(JSON.stringify(audit.list())).not.toContain("합성 CV 본문");
   });
 
+  it("treats concurrent open requests as the same idempotent transition", async () => {
+    const service = new ReviewWorkflowService(new InMemoryReviewRepository([packet()]));
+    const actor = { userId: "reviewer-1", role: "DepartmentReviewer" as const };
+
+    const [first, second] = await Promise.all([
+      service.open("review-1", actor),
+      service.open("review-1", actor)
+    ]);
+
+    expect(first.request.status).toBe("OPENED");
+    expect(second.request.status).toBe("OPENED");
+  });
+
   it("expires in-memory review packets and removes their resume text", async () => {
     let now = Date.parse("2026-07-12T00:00:00.000Z");
     const repository = new InMemoryReviewRepository([packet()], {

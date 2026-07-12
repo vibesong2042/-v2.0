@@ -187,6 +187,7 @@ describe("RoleFit Workbench UI content", () => {
 
     expect(source).toContain("DepartmentReviewPanel");
     expect(source).toContain("<DepartmentReviewPanel");
+    expect(source).toContain('candidateId={selectedCandidate?.id ?? "candidate-unknown"}');
   });
 
   it("supports multiple candidate files and candidate comparison summaries", () => {

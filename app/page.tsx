@@ -752,6 +752,7 @@ export default function Home() {
             reportContentRef={reportPdfRef}
           />
           <DepartmentReviewPanel
+            candidateId={selectedCandidate?.id ?? "candidate-unknown"}
             candidateName={selectedCandidate?.name ?? "합성 후보자"}
             report={selectedReport}
             resumeText={selectedCandidate?.resume.text ?? ""}
